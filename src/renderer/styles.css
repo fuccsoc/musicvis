@@ -77,7 +77,22 @@ body,
   text-align: center;
   max-width: 60vw;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
-  transform: translateY(28px);
+  transform: translateY(12px);
+}
+
+.lyric-line {
+  width: min(72vw, 980px);
+  min-height: 1.45em;
+  margin: 0;
+  text-align: center;
+  font-size: clamp(18px, 2.4vw, 32px);
+  font-weight: 520;
+  line-height: 1.25;
+  opacity: 0.88;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.56);
+  white-space: nowrap;
 }
 
 .track-title {

@@ -10,4 +10,5 @@ export interface TrackInfo {
   position: number;
   playbackState: PlaybackState;
   artworkPath: string | null;
+  lyricLine: string;
 }

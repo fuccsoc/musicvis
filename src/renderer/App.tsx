@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackgroundArtwork } from "./components/BackgroundArtwork";
+import { LyricLine } from "./components/LyricLine";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { TrackInfoView } from "./components/TrackInfo";
 import { Visualizer } from "./components/Visualizer";
@@ -110,6 +111,7 @@ export default function App() {
       <BackgroundArtwork track={track} settings={settings} />
       <section className="content">
         <Visualizer settings={settings} getSamples={getSamples} />
+        <LyricLine track={track} />
         {(track || settings.showNothingPlaying) && <TrackInfoView track={track} settings={settings} />}
         {statusLabel ? <p className="status-banner">{statusLabel}</p> : null}
       </section>

@@ -11,7 +11,7 @@ let mainWindow: BrowserWindow | null = null;
 let helper: AudioHelperManager | null = null;
 let trackPollTimer: NodeJS.Timeout | null = null;
 let requestInFlight = false;
-let lastTrackId = "";
+let lastTrackSignature = "";
 
 registerArtworkProtocolScheme();
 
@@ -39,9 +39,9 @@ async function pollTrack(window: BrowserWindow): Promise<void> {
   } finally {
     requestInFlight = false;
   }
-  const nextId = track?.id ?? "";
-  if (nextId !== lastTrackId) {
-    lastTrackId = nextId;
+  const nextSignature = [track?.id ?? "", track?.lyricLine ?? ""].join("\u001f");
+  if (nextSignature !== lastTrackSignature) {
+    lastTrackSignature = nextSignature;
     emitTrackChanged(window, track);
   }
 }

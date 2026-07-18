@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { app } from "electron";
 import type { PlaybackState, TrackInfo } from "./types";
 import { resolveArtworkFromAppleMusicApi } from "./appleMusicApi";
+import { resolveCurrentLyricLine } from "./lyrics";
 import { log } from "./logger";
 
 const execFileAsync = promisify(execFile);
@@ -252,9 +253,20 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
       }).catch(() => null);
     }
 
+    const lyricLine = await resolveCurrentLyricLine(
+      {
+        artist: parsed.artist,
+        title: parsed.title,
+        album: parsed.album,
+        duration: parsed.duration
+      },
+      parsed.position
+    ).catch(() => "");
+
     return {
       ...parsed,
-      artworkPath: artworkPath ?? null
+      artworkPath: artworkPath ?? null,
+      lyricLine
     };
   } catch (error) {
     log("warn", `AppleScript request failed: ${String(error)}`);
