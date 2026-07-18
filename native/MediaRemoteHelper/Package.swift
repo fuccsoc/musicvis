@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "MediaRemoteHelper",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v10_15)],
     products: [
         .executable(name: "MediaRemoteHelper", targets: ["MediaRemoteHelper"])
     ],
