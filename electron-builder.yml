@@ -9,6 +9,7 @@ extraResources:
     filter:
       - AudioCaptureHelper
       - MediaRemoteHelper
+      - libMediaRemoteAdapter.dylib
       - MediaRemoteAdapter.framework/**
 mac:
   category: public.app-category.music
