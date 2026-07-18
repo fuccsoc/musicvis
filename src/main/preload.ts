@@ -1,8 +1,20 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS } from "./ipc";
 import type { AppSettings, HelperEvent, TrackInfo } from "./types";
 
 type Unsubscribe = () => void;
+
+const IPC_CHANNELS = {
+  GET_CURRENT_TRACK: "visualizer:getCurrentTrack",
+  TRACK_CHANGED: "visualizer:trackChanged",
+  AUDIO_SAMPLES: "visualizer:audioSamples",
+  AUDIO_STATUS: "visualizer:audioStatus",
+  GET_SETTINGS: "visualizer:getSettings",
+  UPDATE_SETTINGS: "visualizer:updateSettings",
+  TOGGLE_FULLSCREEN: "visualizer:toggleFullscreen",
+  TOGGLE_ALWAYS_ON_TOP: "visualizer:toggleAlwaysOnTop",
+  TOGGLE_CLICK_THROUGH: "visualizer:toggleClickThrough",
+  OPEN_SYSTEM_PREFERENCES: "visualizer:openSystemPreferences"
+} as const;
 
 function onChannel<T>(channel: string, callback: (payload: T) => void): Unsubscribe {
   const listener = (_event: Electron.IpcRendererEvent, payload: T) => callback(payload);
