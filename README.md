@@ -58,6 +58,15 @@ Fallback-поиск обложки использует:
 
 Без токена приложение работает с локальной обложкой или тёмным градиентом.
 
+## Lyrics providers (опционально)
+
+Синхронизированные строки lyrics ищутся через:
+
+- `MUSIXMATCH_API_KEY` — официальный Musixmatch API, если ключ задан.
+- LRCLIB — fallback без ключа.
+
+Musixmatch на бесплатных/ограниченных планах может не отдавать full synced lyrics.
+
 ## Сброс настроек
 
 Настройки: `~/Library/Application Support/<app>/settings.json`
