@@ -46,4 +46,36 @@ describe("parseAppleScriptResponse", () => {
       playbackState: "playing"
     });
   });
+
+  it("treats missing MediaRemote playback rate as playing", () => {
+    const parsed = parseMediaRemoteResponse(
+      JSON.stringify({
+        id: "remote-id",
+        title: "Song",
+        artist: "Artist",
+        sourceName: "Yandex Music",
+        duration: 180,
+        position: 12
+      })
+    );
+
+    expect(parsed?.playbackState).toBe("playing");
+  });
+
+  it("treats explicit zero MediaRemote playback rate as paused", () => {
+    const parsed = parseMediaRemoteResponse(
+      JSON.stringify({
+        id: "remote-id",
+        title: "Song",
+        artist: "Artist",
+        sourceName: "Yandex Music",
+        duration: 180,
+        position: 12,
+        playbackRate: 0,
+        hasPlaybackRate: true
+      })
+    );
+
+    expect(parsed?.playbackState).toBe("paused");
+  });
 });

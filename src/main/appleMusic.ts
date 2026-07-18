@@ -45,6 +45,7 @@ interface MediaRemotePayload {
   duration?: number;
   position?: number;
   playbackRate?: number;
+  hasPlaybackRate?: boolean;
 }
 
 export function parseAppleScriptResponse(raw: string): ParsedAppleScript | null {
@@ -95,6 +96,10 @@ function numberValue(info, key) {
   return Number(item.js) || 0;
 }
 
+function hasValue(info, key) {
+  return Boolean(info.valueForKey(key));
+}
+
 function run() {
   const MediaRemote = $.NSBundle.bundleWithPath("/System/Library/PrivateFrameworks/MediaRemote.framework/");
   MediaRemote.load;
@@ -129,7 +134,8 @@ function run() {
     sourceName,
     duration: numberValue(info, "kMRMediaRemoteNowPlayingInfoDuration"),
     position: numberValue(info, "kMRMediaRemoteNowPlayingInfoElapsedTime"),
-    playbackRate: numberValue(info, "kMRMediaRemoteNowPlayingInfoPlaybackRate")
+    playbackRate: numberValue(info, "kMRMediaRemoteNowPlayingInfoPlaybackRate"),
+    hasPlaybackRate: hasValue(info, "kMRMediaRemoteNowPlayingInfoPlaybackRate")
   });
 }
 `;
@@ -183,6 +189,7 @@ export function parseMediaRemoteResponse(raw: string): ParsedAppleScript | null 
   if (!parsed.title) {
     return null;
   }
+  const hasPlaybackRate = parsed.hasPlaybackRate ?? parsed.playbackRate != null;
   return {
     id: parsed.id || [parsed.sourceName, parsed.title, parsed.artist].join("::"),
     title: parsed.title,
@@ -191,20 +198,31 @@ export function parseMediaRemoteResponse(raw: string): ParsedAppleScript | null 
     sourceName: parsed.sourceName || "System audio",
     duration: Number(parsed.duration) || 0,
     position: Number(parsed.position) || 0,
-    playbackState: Number(parsed.playbackRate) > 0 ? "playing" : "paused"
+    playbackState: hasPlaybackRate && Number(parsed.playbackRate) <= 0 ? "paused" : "playing"
   };
+}
+
+function playbackClockKey(track: ParsedAppleScript): string {
+  return [
+    track.sourceName,
+    track.title.trim().toLowerCase(),
+    track.artist.trim().toLowerCase(),
+    track.album.trim().toLowerCase(),
+    Math.round(track.duration)
+  ].join("\u001f");
 }
 
 function estimatePlaybackPosition(track: ParsedAppleScript): number {
   const now = Date.now();
   const incomingPosition = Math.max(0, track.position);
+  const clockKey = playbackClockKey(track);
   if (track.playbackState !== "playing") {
-    playbackClock = { id: track.id, position: incomingPosition, updatedAt: now };
+    playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now };
     return incomingPosition;
   }
 
-  if (!playbackClock || playbackClock.id !== track.id) {
-    playbackClock = { id: track.id, position: incomingPosition, updatedAt: now };
+  if (!playbackClock || playbackClock.id !== clockKey) {
+    playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now };
     return incomingPosition;
   }
 
@@ -231,7 +249,7 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
     pendingSeek = undefined;
   }
   const nextPosition = track.duration > 0 ? Math.min(trustedPosition, track.duration) : trustedPosition;
-  playbackClock = { id: track.id, position: nextPosition, updatedAt: now, pendingSeek };
+  playbackClock = { id: clockKey, position: nextPosition, updatedAt: now, pendingSeek };
   return nextPosition;
 }
 
