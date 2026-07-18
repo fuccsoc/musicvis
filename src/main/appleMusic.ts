@@ -11,6 +11,8 @@ import { log } from "./logger";
 const execFileAsync = promisify(execFile);
 const SEP = "\u001f";
 const artworkCache = new Map<string, string>();
+const debugLyrics = process.env.MUSICVIS_DEBUG_LYRICS === "1";
+let lastPlaybackDebugAt = 0;
 let playbackClock: {
   id: string;
   position: number;
@@ -218,11 +220,13 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
   const clockKey = playbackClockKey(track);
   if (track.playbackState !== "playing") {
     playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now };
+    debugPlaybackClock(track, incomingPosition, incomingPosition, 0, "paused");
     return incomingPosition;
   }
 
   if (!playbackClock || playbackClock.id !== clockKey) {
     playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now };
+    debugPlaybackClock(track, incomingPosition, incomingPosition, 0, "reset");
     return incomingPosition;
   }
 
@@ -230,9 +234,11 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
   const drift = incomingPosition - expectedPosition;
   let trustedPosition = Math.max(incomingPosition, expectedPosition);
   let pendingSeek = playbackClock.pendingSeek;
+  let mode = "clock";
   if (drift > 1.25) {
     trustedPosition = incomingPosition;
     pendingSeek = undefined;
+    mode = "forward-resync";
   } else if (drift < -1.25) {
     const confirmedSeek =
       pendingSeek &&
@@ -241,16 +247,50 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
     if (confirmedSeek) {
       trustedPosition = incomingPosition;
       pendingSeek = undefined;
+      mode = "confirmed-backseek";
     } else {
       trustedPosition = expectedPosition;
       pendingSeek = { position: incomingPosition, updatedAt: now };
+      mode = "pending-backseek";
     }
   } else {
     pendingSeek = undefined;
   }
   const nextPosition = track.duration > 0 ? Math.min(trustedPosition, track.duration) : trustedPosition;
   playbackClock = { id: clockKey, position: nextPosition, updatedAt: now, pendingSeek };
+  debugPlaybackClock(track, incomingPosition, nextPosition, drift, mode);
   return nextPosition;
+}
+
+function debugPlaybackClock(
+  track: ParsedAppleScript,
+  incomingPosition: number,
+  estimatedPosition: number,
+  drift: number,
+  mode: string
+): void {
+  if (!debugLyrics) {
+    return;
+  }
+  const now = Date.now();
+  if (now - lastPlaybackDebugAt < 1000) {
+    return;
+  }
+  lastPlaybackDebugAt = now;
+  log(
+    "info",
+    [
+      "lyrics-debug playback",
+      `mode=${mode}`,
+      `state=${track.playbackState}`,
+      `source=${track.sourceName}`,
+      `track="${track.artist} - ${track.title}"`,
+      `raw=${incomingPosition.toFixed(2)}`,
+      `estimated=${estimatedPosition.toFixed(2)}`,
+      `drift=${drift.toFixed(2)}`,
+      `duration=${track.duration.toFixed(2)}`
+    ].join(" ")
+  );
 }
 
 async function saveArtworkByAppleScript(trackId: string): Promise<string | null> {

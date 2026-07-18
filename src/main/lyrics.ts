@@ -65,6 +65,8 @@ interface LyricsCacheEntry {
 
 const lyricsCache = new Map<string, LyricsCacheEntry>();
 const loggedKeys = new Set<string>();
+const debugLyrics = process.env.MUSICVIS_DEBUG_LYRICS === "1";
+const lastDebugByKey = new Map<string, string>();
 const missTtlMs = 5 * 60 * 1000;
 
 function cleanText(value: string): string {
@@ -417,5 +419,24 @@ export async function resolveCurrentLyricLine(query: LyricsQuery, position: numb
     }
   }
   const lines = lyricsCache.get(key)?.lines ?? null;
-  return lyricLineAt(lines, position);
+  const line = lyricLineAt(lines, position);
+  debugLyricLine(key, position, line, lines?.length ?? 0);
+  return line;
+}
+
+function debugLyricLine(key: string, position: number, line: string, lineCount: number): void {
+  if (!debugLyrics || !lineCount) {
+    return;
+  }
+  const signature = `${line}::${Math.floor(position)}`;
+  if (lastDebugByKey.get(key) === signature) {
+    return;
+  }
+  lastDebugByKey.set(key, signature);
+  log(
+    "info",
+    line
+      ? `lyrics-debug line position=${position.toFixed(2)} lines=${lineCount} text="${line}"`
+      : `lyrics-debug line position=${position.toFixed(2)} lines=${lineCount} text=""`
+  );
 }

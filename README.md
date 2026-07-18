@@ -67,6 +67,12 @@ Fallback-поиск обложки использует:
 
 Musixmatch на бесплатных/ограниченных планах может не отдавать full synced lyrics.
 
+Для диагностики синхронизации lyrics:
+
+```bash
+MUSICVIS_DEBUG_LYRICS=1 npm run dev
+```
+
 ## Сброс настроек
 
 Настройки: `~/Library/Application Support/<app>/settings.json`
