@@ -221,10 +221,10 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
   const incomingPosition = Math.max(0, track.position);
   const clockKey = playbackClockKey(track);
   if (track.playbackState !== "playing") {
-    const sameTrackClock = playbackClock && playbackClock.id === clockKey;
-    const pausedSince = sameTrackClock ? playbackClock.pausedSince ?? now : now;
-    if (sameTrackClock && now - pausedSince < 1800) {
-      const expectedPosition = playbackClock.position + (now - playbackClock.updatedAt) / 1000;
+    const activeClock = playbackClock?.id === clockKey ? playbackClock : null;
+    const pausedSince = activeClock ? activeClock.pausedSince ?? now : now;
+    if (activeClock && now - pausedSince < 1800) {
+      const expectedPosition = activeClock.position + (now - activeClock.updatedAt) / 1000;
       const nextPosition = track.duration > 0 ? Math.min(expectedPosition, track.duration) : expectedPosition;
       playbackClock = {
         id: clockKey,
@@ -232,7 +232,7 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
         updatedAt: now,
         rawPosition: incomingPosition,
         pausedSince,
-        pendingSeek: playbackClock.pendingSeek
+        pendingSeek: activeClock.pendingSeek
       };
       debugPlaybackClock(track, incomingPosition, nextPosition, incomingPosition - expectedPosition, "paused-grace");
       return nextPosition;
