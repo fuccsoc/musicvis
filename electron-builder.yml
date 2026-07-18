@@ -1,0 +1,15 @@
+appId: com.fuccsoc.musicvis
+productName: musicvis
+files:
+  - dist/**
+  - package.json
+extraResources:
+  - from: resources/native
+    to: native
+    filter:
+      - AudioCaptureHelper
+mac:
+  category: public.app-category.music
+  target:
+    - dmg
+    - zip

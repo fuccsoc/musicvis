@@ -1,0 +1,125 @@
+:root {
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.background-root,
+.background-image,
+.background-fallback,
+.background-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.background-image {
+  background-position: center;
+  background-size: cover;
+  transform: scale(1.1);
+  transition: opacity 500ms ease;
+}
+
+.background-fallback {
+  background: radial-gradient(circle at 20% 20%, #202020, #000);
+}
+
+.background-overlay {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.68));
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 22px;
+}
+
+.visualizer {
+  max-width: 90vw;
+  height: 180px;
+}
+
+.waveform-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.track-info {
+  text-align: center;
+  max-width: 60vw;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+}
+
+.track-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: clamp(24px, 4vw, 48px);
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.track-artist,
+.track-album {
+  margin: 0.3rem 0 0;
+  opacity: 0.8;
+  font-size: clamp(16px, 2vw, 24px);
+}
+
+.track-empty {
+  opacity: 0.75;
+}
+
+.status-banner {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.settings-panel {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  z-index: 5;
+  width: 280px;
+  background: rgba(15, 15, 15, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-close {
+  align-self: flex-end;
+}
+
+.settings-panel label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.9rem;
+}
