@@ -15,6 +15,7 @@ const debugLyrics = process.env.MUSICVIS_DEBUG_LYRICS === "1";
 let lastPlaybackDebugAt = 0;
 let swiftHelperFailures = 0;
 let swiftHelperDisabledUntil = 0;
+let swiftHelperInFlight: Promise<ParsedAppleScript | null> | null = null;
 let playbackClock: {
   id: string;
   position: number;
@@ -230,7 +231,21 @@ export function parseSwiftMediaRemoteResponse(raw: string): ParsedAppleScript | 
   };
 }
 
-async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null> {
+function commandErrorDetails(error: unknown): string {
+  const err = error as {
+    message?: string;
+    code?: unknown;
+    signal?: unknown;
+    stdout?: string;
+    stderr?: string;
+  };
+  const message = err.message ?? String(error);
+  const stdout = (err.stdout ?? "").trim().slice(0, 240);
+  const stderr = (err.stderr ?? "").trim().slice(0, 240);
+  return `message="${message}" code=${String(err.code ?? "")} signal=${String(err.signal ?? "")} stdout="${stdout}" stderr="${stderr}"`;
+}
+
+async function runSwiftMediaRemoteHelper(): Promise<ParsedAppleScript | null> {
   const now = Date.now();
   if (now < swiftHelperDisabledUntil) {
     debugLog("metadata", `swift-helper skip reason=circuit-open retryIn=${swiftHelperDisabledUntil - now}ms`);
@@ -246,7 +261,7 @@ async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null>
   try {
     debugLog("metadata", `swift-helper start path="${helperPath}"`);
     const { stdout } = await execFileAsync(helperPath, [], {
-      timeout: 1200,
+      timeout: 1500,
       windowsHide: true
     });
     const parsed = parseSwiftMediaRemoteResponse(stdout);
@@ -267,12 +282,24 @@ async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null>
     if (swiftHelperFailures >= 2) {
       swiftHelperDisabledUntil = Date.now() + 60_000;
     }
-    debugLog("metadata", `swift-helper failed error="${String(error)}"`);
+    debugLog("metadata", `swift-helper failed ${commandErrorDetails(error)}`);
     if (swiftHelperDisabledUntil > Date.now()) {
       debugLog("metadata", "swift-helper circuit-open reason=failure");
     }
     return null;
   }
+}
+
+async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null> {
+  if (swiftHelperInFlight) {
+    debugLog("metadata", "swift-helper join-inflight");
+    return swiftHelperInFlight;
+  }
+
+  swiftHelperInFlight = runSwiftMediaRemoteHelper().finally(() => {
+    swiftHelperInFlight = null;
+  });
+  return swiftHelperInFlight;
 }
 
 export function parseMediaRemoteResponse(raw: string): ParsedAppleScript | null {

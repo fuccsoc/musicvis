@@ -40,7 +40,15 @@ func mediaPayload(from trackInfo: TrackInfo) -> [String: Any] {
 }
 
 let controller = MediaController()
-let semaphore = DispatchSemaphore(value: 0)
+var didFinish = false
+
+func finish() {
+    guard !didFinish else {
+        return
+    }
+    didFinish = true
+    exit(0)
+}
 
 controller.getTrackInfo { trackInfo in
     if let trackInfo {
@@ -49,12 +57,16 @@ controller.getTrackInfo { trackInfo in
         fputs("null\n", stdout)
         fflush(stdout)
     }
-    semaphore.signal()
+    finish()
 }
 
-let timeout = DispatchTime.now() + .seconds(3)
-if semaphore.wait(timeout: timeout) == .timedOut {
+DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(900)) {
+    guard !didFinish else {
+        return
+    }
     fputs("null\n", stdout)
     fflush(stdout)
-    exit(1)
+    finish()
 }
+
+RunLoop.main.run()
