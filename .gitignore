@@ -4,3 +4,4 @@ dist
 *.log
 coverage
 native/AudioCaptureHelper/.build
+native/MediaRemoteHelper/.build

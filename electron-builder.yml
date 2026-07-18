@@ -8,6 +8,8 @@ extraResources:
     to: native
     filter:
       - AudioCaptureHelper
+      - MediaRemoteHelper
+      - MediaRemoteAdapter.framework/**
 mac:
   category: public.app-category.music
   target:

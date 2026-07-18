@@ -39,6 +39,10 @@ npm run build:mac
 
 `electron-builder` включает `resources/native/AudioCaptureHelper` через `extraResources`.
 
+`build:native` также собирает `MediaRemoteHelper` на базе Swift package
+`ejbills/mediaremote-adapter`. Если helper собран, приложение использует его как
+основной источник metadata/position и откатывается на JXA/AppleScript при ошибке.
+
 ## Разрешения macOS
 
 Приложение использует:

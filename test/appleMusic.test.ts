@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAppleScriptResponse, parseMediaRemoteResponse } from "../src/main/appleMusic";
+import { parseAppleScriptResponse, parseMediaRemoteResponse, parseSwiftMediaRemoteResponse } from "../src/main/appleMusic";
 
 describe("parseAppleScriptResponse", () => {
   it("parses full applescript payload", () => {
@@ -77,5 +77,31 @@ describe("parseAppleScriptResponse", () => {
     );
 
     expect(parsed?.playbackState).toBe("paused");
+  });
+
+  it("parses Swift MediaRemote helper payloads", () => {
+    const parsed = parseSwiftMediaRemoteResponse(
+      JSON.stringify({
+        id: "swift-id",
+        title: "Song",
+        artist: "Artist",
+        album: "Album",
+        sourceName: "Yandex Music",
+        duration: 147.12,
+        position: 44.5,
+        playbackState: "playing"
+      })
+    );
+
+    expect(parsed).toEqual({
+      id: "swift-id",
+      title: "Song",
+      artist: "Artist",
+      album: "Album",
+      sourceName: "Yandex Music",
+      duration: 147.12,
+      position: 44.5,
+      playbackState: "playing"
+    });
   });
 });

@@ -52,6 +52,19 @@ interface MediaRemotePayload {
   hasPlaybackRate?: boolean;
 }
 
+interface SwiftMediaRemotePayload {
+  id?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  sourceName?: string;
+  duration?: number;
+  position?: number;
+  playbackState?: PlaybackState;
+  playbackRate?: number | null;
+  bundleIdentifier?: string;
+}
+
 export function parseAppleScriptResponse(raw: string): ParsedAppleScript | null {
   const trimmed = raw.trim();
   if (!trimmed || trimmed === "NOT_RUNNING" || trimmed === "NO_TRACK") {
@@ -182,6 +195,55 @@ async function runJavaScriptForAutomation(script: string): Promise<string> {
     windowsHide: true
   });
   return stdout;
+}
+
+function mediaRemoteHelperPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "native", "MediaRemoteHelper");
+  }
+  return path.join(app.getAppPath(), "resources", "native", "MediaRemoteHelper");
+}
+
+export function parseSwiftMediaRemoteResponse(raw: string): ParsedAppleScript | null {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "null") {
+    return null;
+  }
+  const parsed = JSON.parse(trimmed) as SwiftMediaRemotePayload;
+  if (!parsed.title) {
+    return null;
+  }
+  const sourceName = parsed.sourceName || parsed.bundleIdentifier || "System audio";
+  return {
+    id: parsed.id || [parsed.bundleIdentifier, parsed.title, parsed.artist].join("::"),
+    title: parsed.title,
+    artist: parsed.artist ?? "",
+    album: parsed.album ?? "",
+    sourceName,
+    duration: Number(parsed.duration) || 0,
+    position: Number(parsed.position) || 0,
+    playbackState: parsed.playbackState === "paused" ? "paused" : "playing"
+  };
+}
+
+async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null> {
+  const helperPath = mediaRemoteHelperPath();
+  if (!fs.existsSync(helperPath)) {
+    return null;
+  }
+
+  try {
+    const { stdout } = await execFileAsync(helperPath, [], {
+      timeout: 4000,
+      windowsHide: true
+    });
+    return parseSwiftMediaRemoteResponse(stdout);
+  } catch (error) {
+    if (debugLyrics) {
+      log("warn", `Swift MediaRemote helper failed: ${String(error)}`);
+    }
+    return null;
+  }
 }
 
 export function parseMediaRemoteResponse(raw: string): ParsedAppleScript | null {
@@ -360,9 +422,9 @@ end tell
 
 export async function getCurrentTrack(): Promise<TrackInfo | null> {
   try {
-    let parsed: ParsedAppleScript | null = null;
+    let parsed: ParsedAppleScript | null = await getTrackFromSwiftMediaRemote();
     try {
-      parsed = parseMediaRemoteResponse(await runJavaScriptForAutomation(mediaRemoteMetadataScript()));
+      parsed ??= parseMediaRemoteResponse(await runJavaScriptForAutomation(mediaRemoteMetadataScript()));
     } catch (error) {
       log("warn", `MediaRemote request failed: ${String(error)}`);
     }
