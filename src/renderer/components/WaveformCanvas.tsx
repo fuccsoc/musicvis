@@ -27,8 +27,12 @@ export function WaveformCanvas({ getSamples, settings }: Props) {
       const dpr = window.devicePixelRatio || 1;
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
+      const nextCanvasWidth = Math.floor(width * dpr);
+      const nextCanvasHeight = Math.floor(height * dpr);
+      if (canvas.width !== nextCanvasWidth || canvas.height !== nextCanvasHeight) {
+        canvas.width = nextCanvasWidth;
+        canvas.height = nextCanvasHeight;
+      }
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.clearRect(0, 0, width, height);
 

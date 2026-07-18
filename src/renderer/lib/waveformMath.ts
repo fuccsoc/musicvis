@@ -98,15 +98,24 @@ export function calculateSpectrumBuckets(samples: number[], bucketCount: number)
     const endRatio = (bucketIndex + 1) / bucketCount;
     const startBin = Math.max(minBin, Math.floor(minBin * Math.pow(maxBin / minBin, startRatio)));
     const endBin = Math.max(startBin + 1, Math.ceil(minBin * Math.pow(maxBin / minBin, endRatio)));
-    let peak = 0;
+    let energy = 0;
+    let count = 0;
     for (let bin = startBin; bin < Math.min(endBin, binCount); bin += 1) {
-      peak = Math.max(peak, magnitudes[bin] ?? 0);
+      const magnitude = magnitudes[bin] ?? 0;
+      energy += magnitude * magnitude;
+      count += 1;
     }
-    const lowFrequencyWeight = 1 + (1 - bucketIndex / Math.max(1, bucketCount - 1)) * 0.55;
-    output.push(Math.min(1, Math.log1p(peak * lowFrequencyWeight) / 3));
+    const rms = Math.sqrt(energy / Math.max(1, count));
+    const lowFrequencyWeight = 1 + (1 - bucketIndex / Math.max(1, bucketCount - 1)) * 0.18;
+    const normalized = (rms / (fftSize * 0.22)) * lowFrequencyWeight;
+    output.push(Math.min(1, Math.pow(normalized, 0.62)));
   }
 
-  return output;
+  return output.map((value, index) => {
+    const previous = output[index - 1] ?? value;
+    const next = output[index + 1] ?? value;
+    return previous * 0.18 + value * 0.64 + next * 0.18;
+  });
 }
 
 export function smoothWaveform(previous: number[], current: number[], smoothing: number): number[] {

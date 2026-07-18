@@ -27,6 +27,13 @@ describe("waveform math", () => {
     expect(lowPeak).toBeLessThan(highPeak);
   });
 
+  it("keeps spectrum buckets below hard clipping for a steady tone", () => {
+    const tone = Array.from({ length: 512 }, (_value, index) => Math.sin((2 * Math.PI * index * 8) / 512));
+    const spectrum = calculateSpectrumBuckets(tone, 48);
+
+    expect(spectrum.filter((value) => value >= 1)).toHaveLength(0);
+  });
+
   it("smooths waveforms", () => {
     expect(smoothWaveform([1, 0], [0, 1], 0.5)).toEqual([0.5, 0.5]);
   });
