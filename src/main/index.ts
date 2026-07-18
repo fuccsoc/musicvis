@@ -11,8 +11,8 @@ import { debugLog } from "./logger";
 let mainWindow: BrowserWindow | null = null;
 let helper: AudioHelperManager | null = null;
 let trackPollTimer: NodeJS.Timeout | null = null;
-let requestInFlight = false;
 let lastTrackSignature = "";
+const trackPollDelayMs = 350;
 
 registerArtworkProtocolScheme();
 
@@ -30,16 +30,15 @@ function applySettings(window: BrowserWindow, settings: AppSettings): void {
 }
 
 async function pollTrack(window: BrowserWindow): Promise<void> {
-  if (requestInFlight) {
-    debugLog("poll", "skip reason=request-in-flight");
-    return;
-  }
-  requestInFlight = true;
+  const startedAt = Date.now();
   let track: TrackInfo | null = null;
   try {
     track = await getCurrentTrack();
+  } catch (error) {
+    debugLog("poll", `error="${String(error)}"`);
+    return;
   } finally {
-    requestInFlight = false;
+    debugLog("poll", `duration=${Date.now() - startedAt}ms`);
   }
   const positionBucket = track ? Math.floor(track.position * 2) : 0;
   const nextSignature = [track?.id ?? "", track?.lyricLine ?? "", positionBucket].join("\u001f");
@@ -58,10 +57,12 @@ async function pollTrack(window: BrowserWindow): Promise<void> {
 }
 
 function startPolling(window: BrowserWindow): void {
-  void pollTrack(window);
-  trackPollTimer = setInterval(() => {
-    void pollTrack(window);
-  }, 500);
+  const run = (): void => {
+    void pollTrack(window).finally(() => {
+      trackPollTimer = setTimeout(run, trackPollDelayMs);
+    });
+  };
+  run();
 }
 
 app.on("window-all-closed", () => {
@@ -119,7 +120,7 @@ app.whenReady().then(() => {
 
   app.on("before-quit", () => {
     if (trackPollTimer) {
-      clearInterval(trackPollTimer);
+      clearTimeout(trackPollTimer);
       trackPollTimer = null;
     }
     helper?.stop();
