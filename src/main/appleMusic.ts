@@ -17,6 +17,8 @@ let playbackClock: {
   id: string;
   position: number;
   updatedAt: number;
+  rawPosition: number;
+  pausedSince?: number;
   pendingSeek?: {
     position: number;
     updatedAt: number;
@@ -219,19 +221,36 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
   const incomingPosition = Math.max(0, track.position);
   const clockKey = playbackClockKey(track);
   if (track.playbackState !== "playing") {
-    playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now };
+    const sameTrackClock = playbackClock && playbackClock.id === clockKey;
+    const pausedSince = sameTrackClock ? playbackClock.pausedSince ?? now : now;
+    if (sameTrackClock && now - pausedSince < 1800) {
+      const expectedPosition = playbackClock.position + (now - playbackClock.updatedAt) / 1000;
+      const nextPosition = track.duration > 0 ? Math.min(expectedPosition, track.duration) : expectedPosition;
+      playbackClock = {
+        ...playbackClock,
+        position: nextPosition,
+        updatedAt: now,
+        rawPosition: incomingPosition,
+        pausedSince
+      };
+      debugPlaybackClock(track, incomingPosition, nextPosition, incomingPosition - expectedPosition, "paused-grace");
+      return nextPosition;
+    }
+
+    playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now, rawPosition: incomingPosition, pausedSince };
     debugPlaybackClock(track, incomingPosition, incomingPosition, 0, "paused");
     return incomingPosition;
   }
 
   if (!playbackClock || playbackClock.id !== clockKey) {
-    playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now };
+    playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now, rawPosition: incomingPosition };
     debugPlaybackClock(track, incomingPosition, incomingPosition, 0, "reset");
     return incomingPosition;
   }
 
   const expectedPosition = playbackClock.position + (now - playbackClock.updatedAt) / 1000;
   const drift = incomingPosition - expectedPosition;
+  const rawChanged = Math.abs(incomingPosition - playbackClock.rawPosition) > 0.35;
   let trustedPosition = Math.max(incomingPosition, expectedPosition);
   let pendingSeek = playbackClock.pendingSeek;
   let mode = "clock";
@@ -240,24 +259,29 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
     pendingSeek = undefined;
     mode = "forward-resync";
   } else if (drift < -1.25) {
-    const confirmedSeek =
-      pendingSeek &&
-      Math.abs(incomingPosition - pendingSeek.position) < 1.8 &&
-      now - pendingSeek.updatedAt < 2500;
-    if (confirmedSeek) {
-      trustedPosition = incomingPosition;
-      pendingSeek = undefined;
-      mode = "confirmed-backseek";
-    } else {
+    if (!rawChanged && !pendingSeek) {
       trustedPosition = expectedPosition;
-      pendingSeek = { position: incomingPosition, updatedAt: now };
-      mode = "pending-backseek";
+      mode = "stale-raw";
+    } else {
+      const confirmedSeek =
+        pendingSeek &&
+        Math.abs(incomingPosition - pendingSeek.position) < 1.8 &&
+        now - pendingSeek.updatedAt < 2500;
+      if (confirmedSeek) {
+        trustedPosition = incomingPosition;
+        pendingSeek = undefined;
+        mode = "confirmed-backseek";
+      } else {
+        trustedPosition = expectedPosition;
+        pendingSeek = { position: incomingPosition, updatedAt: now };
+        mode = "pending-backseek";
+      }
     }
   } else {
     pendingSeek = undefined;
   }
   const nextPosition = track.duration > 0 ? Math.min(trustedPosition, track.duration) : trustedPosition;
-  playbackClock = { id: clockKey, position: nextPosition, updatedAt: now, pendingSeek };
+  playbackClock = { id: clockKey, position: nextPosition, updatedAt: now, rawPosition: incomingPosition, pendingSeek };
   debugPlaybackClock(track, incomingPosition, nextPosition, drift, mode);
   return nextPosition;
 }
