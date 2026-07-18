@@ -442,6 +442,13 @@ function debugPlaybackClock(
   );
 }
 
+function logCurrentLyric(line: string): void {
+  if (!debugLyrics) {
+    return;
+  }
+  log("info", `lyric="${line.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`);
+}
+
 async function saveArtworkByAppleScript(trackId: string): Promise<string | null> {
   const folder = artworkCacheDir();
   fs.mkdirSync(folder, { recursive: true });
@@ -542,6 +549,7 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
       },
       estimatedPosition
     ).catch(() => ({ line: "", lines: [] }));
+    logCurrentLyric(lyrics.line);
     debugLog(
       "track",
       `ready provider="${parsed.sourceName}" track="${parsed.artist} - ${parsed.title}" position=${estimatedPosition.toFixed(2)} state=${parsed.playbackState} lyric="${lyrics.line}"`
