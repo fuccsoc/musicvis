@@ -68,7 +68,7 @@ function fft(real: number[], imag: number[]): void {
   }
 }
 
-export function calculateSpectrumBuckets(samples: number[], bucketCount: number): number[] {
+export function calculateSpectrumBuckets(samples: number[], bucketCount: number, bassLevel = 0.62): number[] {
   if (!samples.length || bucketCount <= 0) {
     return [];
   }
@@ -106,8 +106,9 @@ export function calculateSpectrumBuckets(samples: number[], bucketCount: number)
       count += 1;
     }
     const rms = Math.sqrt(energy / Math.max(1, count));
-    const lowFrequencyWeight = 1 + (1 - bucketIndex / Math.max(1, bucketCount - 1)) * 0.18;
-    const normalized = (rms / (fftSize * 0.22)) * lowFrequencyWeight;
+    const bucketRatio = bucketIndex / Math.max(1, bucketCount - 1);
+    const bassRolloff = bassLevel + (1 - bassLevel) * Math.min(1, bucketRatio / 0.38);
+    const normalized = (rms / (fftSize * 0.22)) * bassRolloff;
     output.push(Math.min(1, Math.pow(normalized, 0.62)));
   }
 

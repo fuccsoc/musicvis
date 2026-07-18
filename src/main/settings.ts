@@ -22,6 +22,7 @@ export const defaultSettings: AppSettings = {
   waveformGlow: 18,
   barGap: 3,
   spectrumBucketCount: 96,
+  bassLevel: 0.62,
   sensitivity: 1.35,
   smoothing: 0.72,
   idleAmplitude: 0.01,

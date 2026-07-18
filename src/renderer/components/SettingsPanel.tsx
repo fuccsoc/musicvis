@@ -117,6 +117,18 @@ export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
       </label>
 
       <label>
+        <span>Bass {Math.round(settings.bassLevel * 100)}%</span>
+        <input
+          type="range"
+          min={0.25}
+          max={1.2}
+          step={0.01}
+          value={settings.bassLevel}
+          onChange={updateNumber("bassLevel")}
+        />
+      </label>
+
+      <label>
         <span>Line {settings.lineWidth}px</span>
         <input
           type="range"

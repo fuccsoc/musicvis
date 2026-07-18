@@ -34,6 +34,14 @@ describe("waveform math", () => {
     expect(spectrum.filter((value) => value >= 1)).toHaveLength(0);
   });
 
+  it("can attenuate low frequency buckets", () => {
+    const tone = Array.from({ length: 512 }, (_value, index) => Math.sin((2 * Math.PI * index * 4) / 512));
+    const fullBass = calculateSpectrumBuckets(tone, 48, 1);
+    const reducedBass = calculateSpectrumBuckets(tone, 48, 0.45);
+
+    expect(Math.max(...reducedBass.slice(0, 12))).toBeLessThan(Math.max(...fullBass.slice(0, 12)));
+  });
+
   it("smooths waveforms", () => {
     expect(smoothWaveform([1, 0], [0, 1], 0.5)).toEqual([0.5, 0.5]);
   });

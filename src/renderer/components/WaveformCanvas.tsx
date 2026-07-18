@@ -41,7 +41,7 @@ export function WaveformCanvas({ getSamples, settings }: Props) {
         Math.max(-1, Math.min(1, sample * settings.sensitivity))
       );
       const bucketCount = Math.max(12, Math.min(256, Math.floor(settings.spectrumBucketCount)));
-      const buckets = calculateSpectrumBuckets(normalized, bucketCount);
+      const buckets = calculateSpectrumBuckets(normalized, bucketCount, settings.bassLevel);
       const idle = new Array(buckets.length || bucketCount).fill(settings.idleAmplitude);
       const target = buckets.length ? buckets : idle;
       smoothedRef.current = smoothWaveform(smoothedRef.current, target, settings.smoothing);
