@@ -48,6 +48,7 @@ export interface AppSettings {
   waveformFillOpacity: number;
   waveformGlow: number;
   barGap: number;
+  spectrumBucketCount: number;
   sensitivity: number;
   smoothing: number;
   idleAmplitude: number;

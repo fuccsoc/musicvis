@@ -105,6 +105,18 @@ export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
       </label>
 
       <label>
+        <span>Bands {settings.spectrumBucketCount}</span>
+        <input
+          type="range"
+          min={12}
+          max={220}
+          step={1}
+          value={settings.spectrumBucketCount}
+          onChange={updateNumber("spectrumBucketCount")}
+        />
+      </label>
+
+      <label>
         <span>Line {settings.lineWidth}px</span>
         <input
           type="range"

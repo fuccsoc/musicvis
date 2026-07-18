@@ -3,7 +3,6 @@ import { BrowserWindow } from "electron";
 
 export function createMainWindow(): BrowserWindow {
   const browserWindow = new BrowserWindow({
-    frame: false,
     transparent: false,
     backgroundColor: "#000000",
     resizable: true,
