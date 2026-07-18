@@ -26,6 +26,7 @@ interface LyricsCacheEntry {
 
 const lyricsCache = new Map<string, LyricsCacheEntry>();
 const loggedKeys = new Set<string>();
+const lastLineLog = new Map<string, string>();
 const missTtlMs = 5 * 60 * 1000;
 
 function cleanText(value: string): string {
@@ -235,5 +236,14 @@ export async function resolveCurrentLyricLine(query: LyricsQuery, position: numb
       log("info", lines ? `Lyrics found for ${label}: ${lines.length} synced lines` : `No synced lyrics found for ${label}`);
     }
   }
-  return lyricLineAt(lyricsCache.get(key)?.lines ?? null, position);
+  const lines = lyricsCache.get(key)?.lines ?? null;
+  const line = lyricLineAt(lines, position);
+  if (lines?.length) {
+    const signature = `${line}::${Math.floor(position / 5)}`;
+    if (lastLineLog.get(key) !== signature) {
+      lastLineLog.set(key, signature);
+      log("info", line ? `Lyric line at ${position.toFixed(1)}s: ${line}` : `No active lyric line at ${position.toFixed(1)}s`);
+    }
+  }
+  return line;
 }

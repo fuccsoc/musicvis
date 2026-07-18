@@ -11,6 +11,7 @@ import { log } from "./logger";
 const execFileAsync = promisify(execFile);
 const SEP = "\u001f";
 const artworkCache = new Map<string, string>();
+let playbackClock: { id: string; position: number; updatedAt: number } | null = null;
 
 function artworkCacheDir(): string {
   return path.join(app.getPath("userData"), "cache", "artwork");
@@ -186,6 +187,26 @@ export function parseMediaRemoteResponse(raw: string): ParsedAppleScript | null 
   };
 }
 
+function estimatePlaybackPosition(track: ParsedAppleScript): number {
+  const now = Date.now();
+  const incomingPosition = Math.max(0, track.position);
+  if (track.playbackState !== "playing") {
+    playbackClock = { id: track.id, position: incomingPosition, updatedAt: now };
+    return incomingPosition;
+  }
+
+  if (!playbackClock || playbackClock.id !== track.id) {
+    playbackClock = { id: track.id, position: incomingPosition, updatedAt: now };
+    return incomingPosition;
+  }
+
+  const expectedPosition = playbackClock.position + (now - playbackClock.updatedAt) / 1000;
+  const trustedPosition = incomingPosition > expectedPosition + 1.5 ? incomingPosition : Math.max(incomingPosition, expectedPosition);
+  const nextPosition = track.duration > 0 ? Math.min(trustedPosition, track.duration) : trustedPosition;
+  playbackClock = { id: track.id, position: nextPosition, updatedAt: now };
+  return nextPosition;
+}
+
 async function saveArtworkByAppleScript(trackId: string): Promise<string | null> {
   const folder = artworkCacheDir();
   fs.mkdirSync(folder, { recursive: true });
@@ -239,6 +260,7 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
     if (!parsed) {
       return null;
     }
+    const estimatedPosition = estimatePlaybackPosition(parsed);
 
     let artworkPath = artworkCache.get(parsed.id) ?? null;
     if ((!artworkPath || !fs.existsSync(artworkPath)) && parsed.sourceName === "Music") {
@@ -260,11 +282,12 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
         album: parsed.album,
         duration: parsed.duration
       },
-      parsed.position
+      estimatedPosition
     ).catch(() => "");
 
     return {
       ...parsed,
+      position: estimatedPosition,
       artworkPath: artworkPath ?? null,
       lyricLine
     };
