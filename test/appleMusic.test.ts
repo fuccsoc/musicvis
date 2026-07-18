@@ -101,7 +101,8 @@ describe("parseAppleScriptResponse", () => {
       sourceName: "Yandex Music",
       duration: 147.12,
       position: 44.5,
-      playbackState: "playing"
+      playbackState: "playing",
+      positionReliable: true
     });
   });
 });

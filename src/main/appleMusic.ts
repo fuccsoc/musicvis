@@ -38,6 +38,7 @@ interface ParsedAppleScript {
   duration: number;
   position: number;
   playbackState: PlaybackState;
+  positionReliable?: boolean;
 }
 
 interface MediaRemotePayload {
@@ -222,7 +223,8 @@ export function parseSwiftMediaRemoteResponse(raw: string): ParsedAppleScript | 
     sourceName,
     duration: Number(parsed.duration) || 0,
     position: Number(parsed.position) || 0,
-    playbackState: parsed.playbackState === "paused" ? "paused" : "playing"
+    playbackState: parsed.playbackState === "paused" ? "paused" : "playing",
+    positionReliable: true
   };
 }
 
@@ -289,6 +291,12 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
   const now = Date.now();
   const incomingPosition = Math.max(0, track.position);
   const clockKey = playbackClockKey(track);
+  if (track.positionReliable) {
+    playbackClock = { id: clockKey, position: incomingPosition, updatedAt: now, rawPosition: incomingPosition };
+    debugPlaybackClock(track, incomingPosition, incomingPosition, 0, "trusted-raw");
+    return incomingPosition;
+  }
+
   if (track.playbackState !== "playing") {
     const activeClock = playbackClock?.id === clockKey ? playbackClock : null;
     const pausedSince = activeClock ? activeClock.pausedSince ?? now : now;
