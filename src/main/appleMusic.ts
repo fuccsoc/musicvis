@@ -201,7 +201,8 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
   }
 
   const expectedPosition = playbackClock.position + (now - playbackClock.updatedAt) / 1000;
-  const trustedPosition = incomingPosition > expectedPosition + 1.5 ? incomingPosition : Math.max(incomingPosition, expectedPosition);
+  const drift = incomingPosition - expectedPosition;
+  const trustedPosition = Math.abs(drift) > 1.25 ? incomingPosition : Math.max(incomingPosition, expectedPosition);
   const nextPosition = track.duration > 0 ? Math.min(trustedPosition, track.duration) : trustedPosition;
   playbackClock = { id: track.id, position: nextPosition, updatedAt: now };
   return nextPosition;
