@@ -11,7 +11,15 @@ import { log } from "./logger";
 const execFileAsync = promisify(execFile);
 const SEP = "\u001f";
 const artworkCache = new Map<string, string>();
-let playbackClock: { id: string; position: number; updatedAt: number } | null = null;
+let playbackClock: {
+  id: string;
+  position: number;
+  updatedAt: number;
+  pendingSeek?: {
+    position: number;
+    updatedAt: number;
+  };
+} | null = null;
 
 function artworkCacheDir(): string {
   return path.join(app.getPath("userData"), "cache", "artwork");
@@ -202,9 +210,25 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
 
   const expectedPosition = playbackClock.position + (now - playbackClock.updatedAt) / 1000;
   const drift = incomingPosition - expectedPosition;
-  const trustedPosition = Math.abs(drift) > 1.25 ? incomingPosition : Math.max(incomingPosition, expectedPosition);
+  let trustedPosition = Math.max(incomingPosition, expectedPosition);
+  let pendingSeek = playbackClock.pendingSeek;
+  if (Math.abs(drift) > 1.25) {
+    const confirmedSeek =
+      pendingSeek &&
+      Math.abs(incomingPosition - pendingSeek.position) < 1.8 &&
+      now - pendingSeek.updatedAt < 2500;
+    if (confirmedSeek) {
+      trustedPosition = incomingPosition;
+      pendingSeek = undefined;
+    } else {
+      trustedPosition = expectedPosition;
+      pendingSeek = { position: incomingPosition, updatedAt: now };
+    }
+  } else {
+    pendingSeek = undefined;
+  }
   const nextPosition = track.duration > 0 ? Math.min(trustedPosition, track.duration) : trustedPosition;
-  playbackClock = { id: track.id, position: nextPosition, updatedAt: now };
+  playbackClock = { id: track.id, position: nextPosition, updatedAt: now, pendingSeek };
   return nextPosition;
 }
 
