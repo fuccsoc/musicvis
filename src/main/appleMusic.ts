@@ -227,11 +227,12 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
       const expectedPosition = playbackClock.position + (now - playbackClock.updatedAt) / 1000;
       const nextPosition = track.duration > 0 ? Math.min(expectedPosition, track.duration) : expectedPosition;
       playbackClock = {
-        ...playbackClock,
+        id: clockKey,
         position: nextPosition,
         updatedAt: now,
         rawPosition: incomingPosition,
-        pausedSince
+        pausedSince,
+        pendingSeek: playbackClock.pendingSeek
       };
       debugPlaybackClock(track, incomingPosition, nextPosition, incomingPosition - expectedPosition, "paused-grace");
       return nextPosition;
