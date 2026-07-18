@@ -13,6 +13,8 @@ const SEP = "\u001f";
 const artworkCache = new Map<string, string>();
 const debugLyrics = process.env.MUSICVIS_DEBUG_LYRICS === "1";
 let lastPlaybackDebugAt = 0;
+let swiftHelperFailures = 0;
+let swiftHelperDisabledUntil = 0;
 let playbackClock: {
   id: string;
   position: number;
@@ -229,6 +231,12 @@ export function parseSwiftMediaRemoteResponse(raw: string): ParsedAppleScript | 
 }
 
 async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null> {
+  const now = Date.now();
+  if (now < swiftHelperDisabledUntil) {
+    debugLog("metadata", `swift-helper skip reason=circuit-open retryIn=${swiftHelperDisabledUntil - now}ms`);
+    return null;
+  }
+
   const helperPath = mediaRemoteHelperPath();
   if (!fs.existsSync(helperPath)) {
     debugLog("metadata", `swift-helper missing path="${helperPath}"`);
@@ -238,19 +246,31 @@ async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null>
   try {
     debugLog("metadata", `swift-helper start path="${helperPath}"`);
     const { stdout } = await execFileAsync(helperPath, [], {
-      timeout: 4000,
+      timeout: 1200,
       windowsHide: true
     });
     const parsed = parseSwiftMediaRemoteResponse(stdout);
+    swiftHelperFailures = parsed ? 0 : swiftHelperFailures + 1;
     debugLog(
       "metadata",
       parsed
         ? `swift-helper ok track="${parsed.artist} - ${parsed.title}" position=${parsed.position.toFixed(2)} state=${parsed.playbackState}`
         : `swift-helper empty stdout="${stdout.trim().slice(0, 160)}"`
     );
+    if (!parsed && swiftHelperFailures >= 2) {
+      swiftHelperDisabledUntil = Date.now() + 60_000;
+      debugLog("metadata", "swift-helper circuit-open reason=empty-response");
+    }
     return parsed;
   } catch (error) {
+    swiftHelperFailures += 1;
+    if (swiftHelperFailures >= 2) {
+      swiftHelperDisabledUntil = Date.now() + 60_000;
+    }
     debugLog("metadata", `swift-helper failed error="${String(error)}"`);
+    if (swiftHelperDisabledUntil > Date.now()) {
+      debugLog("metadata", "swift-helper circuit-open reason=failure");
+    }
     return null;
   }
 }
