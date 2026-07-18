@@ -8,6 +8,7 @@ export interface TrackInfo {
   sourceName: string;
   duration: number;
   position: number;
+  positionReliable: boolean;
   playbackState: PlaybackState;
   artworkPath: string | null;
   lyricLine: string;

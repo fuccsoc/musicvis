@@ -13,6 +13,7 @@ let helper: AudioHelperManager | null = null;
 let trackPollTimer: NodeJS.Timeout | null = null;
 let lastTrackSignature = "";
 const trackPollDelayMs = 100;
+const reliableSyncIntervalMs = 2000;
 
 registerArtworkProtocolScheme();
 
@@ -40,8 +41,14 @@ async function pollTrack(window: BrowserWindow): Promise<void> {
   } finally {
     debugLog("poll", `duration=${Date.now() - startedAt}ms`);
   }
-  const positionBucket = track ? Math.floor(track.position * 2) : 0;
-  const nextSignature = [track?.id ?? "", track?.lyricLine ?? "", positionBucket].join("\u001f");
+  const syncBucket = track?.positionReliable ? Math.floor(track.positionUpdatedAt / reliableSyncIntervalMs) : 0;
+  const nextSignature = [
+    track?.id ?? "",
+    track?.playbackState ?? "",
+    track?.lyricLine ?? "",
+    track?.positionReliable ? "reliable" : "unreliable",
+    syncBucket
+  ].join("\u001f");
   if (nextSignature !== lastTrackSignature) {
     lastTrackSignature = nextSignature;
     debugLog(

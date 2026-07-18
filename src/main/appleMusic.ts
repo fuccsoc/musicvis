@@ -523,6 +523,7 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
     return {
       ...parsed,
       position: estimatedPosition,
+      positionReliable: parsed.positionReliable === true,
       artworkPath: artworkPath ?? null,
       lyricLine: lyrics.line,
       lyricLines: lyrics.lines,
