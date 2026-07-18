@@ -9,10 +9,10 @@
     "dev:electron": "npm run build:main && npm run build:native && wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
     "build": "npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
-    "build:main": "tsc -p /home/runner/work/musicvis/musicvis/tsconfig.main.json",
-    "build:native": "bash /home/runner/work/musicvis/musicvis/scripts/build-native.sh",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:native": "bash scripts/build-native.sh",
     "build:mac": "npm run build && npm run build:native && electron-builder --mac",
-    "typecheck": "tsc -p /home/runner/work/musicvis/musicvis/tsconfig.json --noEmit && tsc -p /home/runner/work/musicvis/musicvis/tsconfig.main.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run"
   },

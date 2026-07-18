@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/home/runner/work/musicvis/musicvis"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NATIVE_DIR="$ROOT/native/AudioCaptureHelper"
 OUTPUT_DIR="$ROOT/resources/native"
 OUTPUT_BIN="$OUTPUT_DIR/AudioCaptureHelper"
