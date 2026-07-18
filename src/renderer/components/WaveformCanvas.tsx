@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { calculateSpectrumBuckets, smoothWaveform } from "../lib/waveformMath";
+import { autoScaleSpectrumBuckets, calculateSpectrumBuckets, smoothWaveform } from "../lib/waveformMath";
 import type { AppSettings } from "../types/settings";
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
 export function WaveformCanvas({ getSamples, settings }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const smoothedRef = useRef<number[]>([]);
+  const autoScaleRef = useRef({ peak: 0, bassPeak: 0, bodyPeak: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -42,8 +43,13 @@ export function WaveformCanvas({ getSamples, settings }: Props) {
       );
       const bucketCount = Math.max(12, Math.min(256, Math.floor(settings.spectrumBucketCount)));
       const buckets = calculateSpectrumBuckets(normalized, bucketCount, settings.bassLevel);
+      const scaled = autoScaleSpectrumBuckets(buckets, autoScaleRef.current, {
+        strength: settings.autoScaleStrength,
+        maxGain: settings.autoScaleMaxGain
+      });
+      autoScaleRef.current = scaled.state;
       const idle = new Array(buckets.length || bucketCount).fill(settings.idleAmplitude);
-      const target = buckets.length ? buckets : idle;
+      const target = scaled.values.length ? scaled.values : idle;
       smoothedRef.current = smoothWaveform(smoothedRef.current, target, settings.smoothing);
 
       const strokeGradient = context.createLinearGradient(0, 0, width, 0);

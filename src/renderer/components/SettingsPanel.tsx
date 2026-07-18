@@ -129,6 +129,30 @@ export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
       </label>
 
       <label>
+        <span>Autoscale {Math.round(settings.autoScaleStrength * 100)}%</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={settings.autoScaleStrength}
+          onChange={updateNumber("autoScaleStrength")}
+        />
+      </label>
+
+      <label>
+        <span>Autoscale cap {settings.autoScaleMaxGain.toFixed(2)}x</span>
+        <input
+          type="range"
+          min={1}
+          max={2.2}
+          step={0.05}
+          value={settings.autoScaleMaxGain}
+          onChange={updateNumber("autoScaleMaxGain")}
+        />
+      </label>
+
+      <label>
         <span>Line {settings.lineWidth}px</span>
         <input
           type="range"

@@ -23,6 +23,8 @@ export const defaultSettings: AppSettings = {
   barGap: 3,
   spectrumBucketCount: 96,
   bassLevel: 0.62,
+  autoScaleStrength: 0.58,
+  autoScaleMaxGain: 1.55,
   sensitivity: 1.35,
   smoothing: 0.72,
   idleAmplitude: 0.01,

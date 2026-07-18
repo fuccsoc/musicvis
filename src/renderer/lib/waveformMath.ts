@@ -119,6 +119,79 @@ export function calculateSpectrumBuckets(samples: number[], bucketCount: number,
   });
 }
 
+export interface AutoScaleState {
+  peak: number;
+  bassPeak: number;
+  bodyPeak: number;
+}
+
+export interface AutoScaleOptions {
+  strength: number;
+  maxGain: number;
+  targetPeak?: number;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function percentile(values: number[], ratio: number): number {
+  if (!values.length) {
+    return 0;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio)));
+  return sorted[index];
+}
+
+function smoothEnvelope(previous: number, current: number, attack: number, release: number): number {
+  const amount = current > previous ? attack : release;
+  return previous * (1 - amount) + current * amount;
+}
+
+export function autoScaleSpectrumBuckets(
+  values: number[],
+  state: AutoScaleState,
+  options: AutoScaleOptions
+): { values: number[]; state: AutoScaleState } {
+  if (!values.length) {
+    return { values, state };
+  }
+
+  const strength = clamp(options.strength, 0, 1);
+  if (strength === 0) {
+    return { values, state };
+  }
+
+  const targetPeak = options.targetPeak ?? 0.72;
+  const maxGain = Math.max(1, options.maxGain);
+  const activePeak = Math.max(percentile(values, 0.92), Math.max(...values) * 0.72, 0.035);
+  const bassEnd = Math.max(1, Math.floor(values.length * 0.28));
+  const bodyStart = Math.min(values.length - 1, Math.floor(values.length * 0.34));
+  const bassPeak = Math.max(...values.slice(0, bassEnd), 0.025);
+  const bodyPeak = Math.max(...values.slice(bodyStart), 0.025);
+
+  const nextState = {
+    peak: smoothEnvelope(state.peak || activePeak, activePeak, 0.34, 0.035),
+    bassPeak: smoothEnvelope(state.bassPeak || bassPeak, bassPeak, 0.3, 0.045),
+    bodyPeak: smoothEnvelope(state.bodyPeak || bodyPeak, bodyPeak, 0.3, 0.045)
+  };
+
+  const rawGain = clamp(targetPeak / Math.max(0.035, nextState.peak), 0.78, maxGain);
+  const gain = 1 + (rawGain - 1) * strength;
+  const rawBassGain = clamp(nextState.bodyPeak / Math.max(0.025, nextState.bassPeak), 0.72, 1.28);
+  const bassGain = 1 + (rawBassGain - 1) * strength * 0.72;
+
+  return {
+    state: nextState,
+    values: values.map((value, index) => {
+      const lowRatio = 1 - clamp(index / Math.max(1, values.length * 0.36), 0, 1);
+      const bandGain = 1 + (bassGain - 1) * lowRatio;
+      return clamp(value * gain * bandGain, 0, 0.98);
+    })
+  };
+}
+
 export function smoothWaveform(previous: number[], current: number[], smoothing: number): number[] {
   const clamped = Math.max(0, Math.min(0.95, smoothing));
   const length = Math.max(previous.length, current.length);

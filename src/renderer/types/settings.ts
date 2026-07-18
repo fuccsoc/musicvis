@@ -18,6 +18,8 @@ export interface AppSettings {
   barGap: number;
   spectrumBucketCount: number;
   bassLevel: number;
+  autoScaleStrength: number;
+  autoScaleMaxGain: number;
   sensitivity: number;
   smoothing: number;
   idleAmplitude: number;

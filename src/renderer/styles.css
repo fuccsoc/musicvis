@@ -72,6 +72,7 @@ body,
   text-align: center;
   max-width: 60vw;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+  transform: translateY(28px);
 }
 
 .track-title {
@@ -79,6 +80,13 @@ body,
   font-weight: 600;
   font-size: clamp(24px, 4vw, 48px);
   line-height: 1.1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.24em;
+}
+
+.track-title span {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -91,6 +99,30 @@ body,
   margin: 0.3rem 0 0;
   opacity: 0.8;
   font-size: clamp(16px, 2vw, 24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.34em;
+}
+
+.track-artist span,
+.track-album span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-icon {
+  width: 0.78em;
+  height: 0.78em;
+  flex: 0 0 auto;
+  margin-top: 0.13em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.78;
 }
 
 .track-empty {
