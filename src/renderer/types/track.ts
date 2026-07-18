@@ -5,6 +5,7 @@ export interface TrackInfo {
   title: string;
   artist: string;
   album: string;
+  sourceName: string;
   duration: number;
   position: number;
   playbackState: PlaybackState;

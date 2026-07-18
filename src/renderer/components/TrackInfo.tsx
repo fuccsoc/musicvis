@@ -14,7 +14,7 @@ export function TrackInfoView({ track, settings }: Props) {
   return (
     <div className="track-info" style={{ fontSize: `${settings.textScale}em` }}>
       <h1 className="track-title">{track.title}</h1>
-      <p className="track-artist">{track.artist}</p>
+      <p className="track-artist">{track.artist || track.sourceName}</p>
       {settings.showAlbum ? <p className="track-album">{track.album}</p> : null}
     </div>
   );

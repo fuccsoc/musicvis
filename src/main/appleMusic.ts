@@ -20,9 +20,21 @@ interface ParsedAppleScript {
   title: string;
   artist: string;
   album: string;
+  sourceName: string;
   duration: number;
   position: number;
   playbackState: PlaybackState;
+}
+
+interface MediaRemotePayload {
+  id?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  sourceName?: string;
+  duration?: number;
+  position?: number;
+  playbackRate?: number;
 }
 
 export function parseAppleScriptResponse(raw: string): ParsedAppleScript | null {
@@ -45,10 +57,72 @@ export function parseAppleScriptResponse(raw: string): ParsedAppleScript | null 
     title,
     artist,
     album,
+    sourceName: "Music",
     duration: Number(durationRaw) || 0,
     position: Number(positionRaw) || 0,
     playbackState
   };
+}
+
+function mediaRemoteMetadataScript(): string {
+  return `
+ObjC.import("Foundation");
+
+function value(info, key) {
+  const item = info.valueForKey(key);
+  if (!item) {
+    return "";
+  }
+  const output = item.js;
+  return output == null ? "" : output;
+}
+
+function numberValue(info, key) {
+  const item = info.valueForKey(key);
+  if (!item) {
+    return 0;
+  }
+  return Number(item.js) || 0;
+}
+
+function run() {
+  const MediaRemote = $.NSBundle.bundleWithPath("/System/Library/PrivateFrameworks/MediaRemote.framework/");
+  MediaRemote.load;
+
+  const request = $.NSClassFromString("MRNowPlayingRequest");
+  if (!request || !request.localNowPlayingItem) {
+    return "null";
+  }
+
+  const item = request.localNowPlayingItem;
+  const info = item.nowPlayingInfo;
+  if (!info) {
+    return "null";
+  }
+
+  const title = value(info, "kMRMediaRemoteNowPlayingInfoTitle");
+  if (!title) {
+    return "null";
+  }
+
+  const playerPath = request.localNowPlayingPlayerPath;
+  const client = playerPath ? playerPath.client : null;
+  const sourceName = client && client.displayName ? String(client.displayName.js || "") : "";
+  const bundleIdentifier = client && client.bundleIdentifier ? String(client.bundleIdentifier.js || "") : "";
+  const uniqueIdentifier = value(info, "kMRMediaRemoteNowPlayingInfoUniqueIdentifier");
+
+  return JSON.stringify({
+    id: uniqueIdentifier || [bundleIdentifier, title, value(info, "kMRMediaRemoteNowPlayingInfoArtist")].join("::"),
+    title,
+    artist: value(info, "kMRMediaRemoteNowPlayingInfoArtist"),
+    album: value(info, "kMRMediaRemoteNowPlayingInfoAlbum"),
+    sourceName,
+    duration: numberValue(info, "kMRMediaRemoteNowPlayingInfoDuration"),
+    position: numberValue(info, "kMRMediaRemoteNowPlayingInfoElapsedTime"),
+    playbackRate: numberValue(info, "kMRMediaRemoteNowPlayingInfoPlaybackRate")
+  });
+}
+`;
 }
 
 function trackMetadataScript(): string {
@@ -80,6 +154,35 @@ async function runAppleScript(script: string): Promise<string> {
     windowsHide: true
   });
   return stdout;
+}
+
+async function runJavaScriptForAutomation(script: string): Promise<string> {
+  const { stdout } = await execFileAsync("osascript", ["-l", "JavaScript", "-e", script], {
+    timeout: 5000,
+    windowsHide: true
+  });
+  return stdout;
+}
+
+export function parseMediaRemoteResponse(raw: string): ParsedAppleScript | null {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "null") {
+    return null;
+  }
+  const parsed = JSON.parse(trimmed) as MediaRemotePayload;
+  if (!parsed.title) {
+    return null;
+  }
+  return {
+    id: parsed.id || [parsed.sourceName, parsed.title, parsed.artist].join("::"),
+    title: parsed.title,
+    artist: parsed.artist ?? "",
+    album: parsed.album ?? "",
+    sourceName: parsed.sourceName || "System audio",
+    duration: Number(parsed.duration) || 0,
+    position: Number(parsed.position) || 0,
+    playbackState: Number(parsed.playbackRate) > 0 ? "playing" : "paused"
+  };
 }
 
 async function saveArtworkByAppleScript(trackId: string): Promise<string | null> {
@@ -124,13 +227,20 @@ end tell
 
 export async function getCurrentTrack(): Promise<TrackInfo | null> {
   try {
-    const parsed = parseAppleScriptResponse(await runAppleScript(trackMetadataScript()));
+    let parsed: ParsedAppleScript | null = null;
+    try {
+      parsed = parseMediaRemoteResponse(await runJavaScriptForAutomation(mediaRemoteMetadataScript()));
+    } catch (error) {
+      log("warn", `MediaRemote request failed: ${String(error)}`);
+    }
+
+    parsed ??= parseAppleScriptResponse(await runAppleScript(trackMetadataScript()));
     if (!parsed) {
       return null;
     }
 
     let artworkPath = artworkCache.get(parsed.id) ?? null;
-    if (!artworkPath || !fs.existsSync(artworkPath)) {
+    if ((!artworkPath || !fs.existsSync(artworkPath)) && parsed.sourceName === "Music") {
       artworkPath = await saveArtworkByAppleScript(parsed.id);
     }
 

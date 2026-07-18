@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateSpectrumBuckets,
   calculateRmsBuckets,
   mirrorWaveform,
   normalizeSamples,
@@ -13,6 +14,17 @@ describe("waveform math", () => {
 
   it("calculates rms buckets", () => {
     expect(calculateRmsBuckets([1, 1, 0, 0], 2)).toEqual([1, 0]);
+  });
+
+  it("orders spectrum buckets from low to high frequencies", () => {
+    const lowTone = Array.from({ length: 512 }, (_value, index) => Math.sin((2 * Math.PI * index * 4) / 512));
+    const highTone = Array.from({ length: 512 }, (_value, index) => Math.sin((2 * Math.PI * index * 96) / 512));
+    const lowSpectrum = calculateSpectrumBuckets(lowTone, 24);
+    const highSpectrum = calculateSpectrumBuckets(highTone, 24);
+    const lowPeak = lowSpectrum.indexOf(Math.max(...lowSpectrum));
+    const highPeak = highSpectrum.indexOf(Math.max(...highSpectrum));
+
+    expect(lowPeak).toBeLessThan(highPeak);
   });
 
   it("smooths waveforms", () => {

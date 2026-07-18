@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { calculateRmsBuckets, normalizeSamples, smoothWaveform } from "../lib/waveformMath";
+import { calculateSpectrumBuckets, smoothWaveform } from "../lib/waveformMath";
 import type { AppSettings } from "../types/settings";
 
 interface Props {
@@ -33,8 +33,11 @@ export function WaveformCanvas({ getSamples, settings }: Props) {
       context.clearRect(0, 0, width, height);
 
       const sourceSamples = getSamples();
-      const normalized = normalizeSamples(sourceSamples, settings.sensitivity);
-      const buckets = calculateRmsBuckets(normalized, Math.max(32, Math.floor(width / 6)));
+      const normalized = sourceSamples.map((sample) =>
+        Math.max(-1, Math.min(1, sample * settings.sensitivity))
+      );
+      const bucketCount = Math.max(36, Math.floor(width / 7));
+      const buckets = calculateSpectrumBuckets(normalized, bucketCount);
       const idle = new Array(buckets.length || Math.max(32, Math.floor(width / 6))).fill(settings.idleAmplitude);
       const target = buckets.length ? buckets : idle;
       smoothedRef.current = smoothWaveform(smoothedRef.current, target, settings.smoothing);
