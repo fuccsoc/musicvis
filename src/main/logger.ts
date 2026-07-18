@@ -20,7 +20,7 @@ export function log(level: "info" | "warn" | "error", message: string): void {
 }
 
 export function debugLog(scope: string, message: string): void {
-  if (process.env.MUSICVIS_DEBUG !== "1" && process.env.MUSICVIS_DEBUG_LYRICS !== "1") {
+  if (process.env.MUSICVIS_DEBUG !== "1") {
     return;
   }
   log("info", `debug:${scope} ${message}`);

@@ -418,7 +418,7 @@ function debugPlaybackClock(
   drift: number,
   mode: string
 ): void {
-  if (!debugLyrics) {
+  if (process.env.MUSICVIS_DEBUG !== "1") {
     return;
   }
   const now = Date.now();

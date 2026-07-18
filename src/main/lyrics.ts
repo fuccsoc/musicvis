@@ -65,7 +65,8 @@ interface LyricsCacheEntry {
 
 const lyricsCache = new Map<string, LyricsCacheEntry>();
 const loggedKeys = new Set<string>();
-const debugLyrics = process.env.MUSICVIS_DEBUG_LYRICS === "1";
+const debugLyrics = process.env.MUSICVIS_DEBUG === "1";
+const lyricLineOnlyDebug = process.env.MUSICVIS_DEBUG_LYRICS === "1" && process.env.MUSICVIS_DEBUG !== "1";
 const lastDebugByKey = new Map<string, string>();
 const missTtlMs = 5 * 60 * 1000;
 
@@ -437,7 +438,7 @@ export async function resolveCurrentLyrics(
       lines,
       timestamp: Date.now()
     });
-    if (!loggedKeys.has(key)) {
+    if (!lyricLineOnlyDebug && !loggedKeys.has(key)) {
       loggedKeys.add(key);
       const label = [cleanText(query.artist), cleanText(query.title)].filter(Boolean).join(" - ");
       log("info", lines ? `Lyrics found for ${label}: ${lines.length} synced lines` : `No synced lyrics found for ${label}`);
