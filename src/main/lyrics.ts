@@ -53,7 +53,7 @@ interface MusixmatchTimedLine {
   ts?: number;
 }
 
-interface TimedLyricLine {
+export interface TimedLyricLine {
   time: number;
   text: string;
 }
@@ -421,6 +421,13 @@ async function fetchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null>
 }
 
 export async function resolveCurrentLyricLine(query: LyricsQuery, position: number): Promise<string> {
+  return (await resolveCurrentLyrics(query, position)).line;
+}
+
+export async function resolveCurrentLyrics(
+  query: LyricsQuery,
+  position: number
+): Promise<{ line: string; lines: TimedLyricLine[] }> {
   const key = cacheKey(query);
   const cached = lyricsCache.get(key);
   if (!cached || (!cached.lines && Date.now() - cached.timestamp > missTtlMs)) {
@@ -441,7 +448,7 @@ export async function resolveCurrentLyricLine(query: LyricsQuery, position: numb
   const lines = lyricsCache.get(key)?.lines ?? null;
   const line = lyricLineAt(lines, position);
   debugLyricLine(key, position, line, lines?.length ?? 0);
-  return line;
+  return { line, lines: lines ?? [] };
 }
 
 function debugLyricLine(key: string, position: number, line: string, lineCount: number): void {

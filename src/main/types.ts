@@ -11,6 +11,8 @@ export interface TrackInfo {
   playbackState: PlaybackState;
   artworkPath: string | null;
   lyricLine: string;
+  lyricLines: Array<{ time: number; text: string }>;
+  positionUpdatedAt: number;
 }
 
 export interface AudioEvent {

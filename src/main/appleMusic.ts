@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { app } from "electron";
 import type { PlaybackState, TrackInfo } from "./types";
 import { resolveArtworkFromAppleMusicApi } from "./appleMusicApi";
-import { resolveCurrentLyricLine } from "./lyrics";
+import { resolveCurrentLyrics } from "./lyrics";
 import { debugLog, log } from "./logger";
 
 const execFileAsync = promisify(execFile);
@@ -506,7 +506,7 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
       debugLog("artwork", artworkPath ? `api-artwork hit path="${artworkPath}"` : "api-artwork miss");
     }
 
-    const lyricLine = await resolveCurrentLyricLine(
+    const lyrics = await resolveCurrentLyrics(
       {
         artist: parsed.artist,
         title: parsed.title,
@@ -514,17 +514,19 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
         duration: parsed.duration
       },
       estimatedPosition
-    ).catch(() => "");
+    ).catch(() => ({ line: "", lines: [] }));
     debugLog(
       "track",
-      `ready provider="${parsed.sourceName}" track="${parsed.artist} - ${parsed.title}" position=${estimatedPosition.toFixed(2)} state=${parsed.playbackState} lyric="${lyricLine}"`
+      `ready provider="${parsed.sourceName}" track="${parsed.artist} - ${parsed.title}" position=${estimatedPosition.toFixed(2)} state=${parsed.playbackState} lyric="${lyrics.line}"`
     );
 
     return {
       ...parsed,
       position: estimatedPosition,
       artworkPath: artworkPath ?? null,
-      lyricLine
+      lyricLine: lyrics.line,
+      lyricLines: lyrics.lines,
+      positionUpdatedAt: Date.now()
     };
   } catch (error) {
     log("warn", `AppleScript request failed: ${String(error)}`);
