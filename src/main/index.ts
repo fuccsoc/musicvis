@@ -12,7 +12,7 @@ let mainWindow: BrowserWindow | null = null;
 let helper: AudioHelperManager | null = null;
 let trackPollTimer: NodeJS.Timeout | null = null;
 let lastTrackSignature = "";
-const trackPollDelayMs = 350;
+const trackPollDelayMs = 100;
 
 registerArtworkProtocolScheme();
 
