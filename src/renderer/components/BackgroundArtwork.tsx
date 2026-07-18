@@ -8,7 +8,9 @@ interface Props {
 }
 
 export function BackgroundArtwork({ track, settings }: Props) {
-  const imagePath = track?.artworkPath ? `file://${track.artworkPath}` : "";
+  const imagePath = track?.artworkPath
+    ? `musicvis-artwork://file?path=${encodeURIComponent(track.artworkPath)}`
+    : "";
   const style = {
     "--waveform-color-start": settings.waveformColorStart,
     "--waveform-color-end": settings.waveformColorEnd

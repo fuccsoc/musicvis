@@ -5,12 +5,15 @@ import { emitHelperEvent, emitTrackChanged, setupIpc } from "./ipc";
 import { getSettings } from "./settings";
 import type { AppSettings, TrackInfo } from "./types";
 import { createMainWindow } from "./window";
+import { registerArtworkProtocolHandler, registerArtworkProtocolScheme } from "./artworkProtocol";
 
 let mainWindow: BrowserWindow | null = null;
 let helper: AudioHelperManager | null = null;
 let trackPollTimer: NodeJS.Timeout | null = null;
 let requestInFlight = false;
 let lastTrackId = "";
+
+registerArtworkProtocolScheme();
 
 function applySettings(window: BrowserWindow, settings: AppSettings): void {
   window.setAlwaysOnTop(settings.alwaysOnTop);
@@ -57,6 +60,8 @@ app.on("window-all-closed", () => {
 });
 
 app.whenReady().then(() => {
+  registerArtworkProtocolHandler();
+
   const window = createMainWindow();
   mainWindow = window;
 
