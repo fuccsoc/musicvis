@@ -212,7 +212,10 @@ function estimatePlaybackPosition(track: ParsedAppleScript): number {
   const drift = incomingPosition - expectedPosition;
   let trustedPosition = Math.max(incomingPosition, expectedPosition);
   let pendingSeek = playbackClock.pendingSeek;
-  if (Math.abs(drift) > 1.25) {
+  if (drift > 1.25) {
+    trustedPosition = incomingPosition;
+    pendingSeek = undefined;
+  } else if (drift < -1.25) {
     const confirmedSeek =
       pendingSeek &&
       Math.abs(incomingPosition - pendingSeek.position) < 1.8 &&

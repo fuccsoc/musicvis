@@ -39,7 +39,8 @@ async function pollTrack(window: BrowserWindow): Promise<void> {
   } finally {
     requestInFlight = false;
   }
-  const nextSignature = [track?.id ?? "", track?.lyricLine ?? ""].join("\u001f");
+  const positionBucket = track ? Math.floor(track.position * 2) : 0;
+  const nextSignature = [track?.id ?? "", track?.lyricLine ?? "", positionBucket].join("\u001f");
   if (nextSignature !== lastTrackSignature) {
     lastTrackSignature = nextSignature;
     emitTrackChanged(window, track);
