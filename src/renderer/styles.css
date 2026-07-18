@@ -95,6 +95,29 @@ body,
   white-space: nowrap;
 }
 
+.lyric-line-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+  animation: lyric-line-enter 360ms ease both;
+}
+
+@keyframes lyric-line-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.35em) scale(0.985);
+    filter: blur(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 .track-title {
   margin: 0;
   font-weight: 600;

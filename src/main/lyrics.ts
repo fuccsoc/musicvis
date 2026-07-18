@@ -239,7 +239,7 @@ export async function resolveCurrentLyricLine(query: LyricsQuery, position: numb
   const lines = lyricsCache.get(key)?.lines ?? null;
   const line = lyricLineAt(lines, position);
   if (lines?.length) {
-    const signature = `${line}::${Math.floor(position / 5)}`;
+    const signature = `${line}::${Math.floor(position)}`;
     if (lastLineLog.get(key) !== signature) {
       lastLineLog.set(key, signature);
       log("info", line ? `Lyric line at ${position.toFixed(1)}s: ${line}` : `No active lyric line at ${position.toFixed(1)}s`);

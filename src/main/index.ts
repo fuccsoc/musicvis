@@ -50,7 +50,7 @@ function startPolling(window: BrowserWindow): void {
   void pollTrack(window);
   trackPollTimer = setInterval(() => {
     void pollTrack(window);
-  }, 800);
+  }, 500);
 }
 
 app.on("window-all-closed", () => {

@@ -5,5 +5,12 @@ interface Props {
 }
 
 export function LyricLine({ track }: Props) {
-  return <p className="lyric-line">{track?.lyricLine ?? ""}</p>;
+  const line = track?.lyricLine ?? "";
+  return (
+    <p className="lyric-line">
+      <span key={line || "empty"} className="lyric-line-text">
+        {line}
+      </span>
+    </p>
+  );
 }
