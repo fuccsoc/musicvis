@@ -8,7 +8,7 @@ interface Props {
 
 export function TrackInfoView({ track, settings }: Props) {
   if (!track) {
-    return <div className="track-empty">Nothing Playing</div>;
+    return <div className="track-empty">Listening to Mac audio</div>;
   }
 
   return (

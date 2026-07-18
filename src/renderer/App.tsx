@@ -52,7 +52,7 @@ export default function App() {
     <main className="app" onContextMenu={() => setSettingsOpen((prev) => !prev)}>
       <BackgroundArtwork track={track} settings={settings} />
       <section className="content">
-        <Visualizer track={track} settings={settings} getSamples={getSamples} />
+        <Visualizer settings={settings} getSamples={getSamples} />
         {(track || settings.showNothingPlaying) && <TrackInfoView track={track} settings={settings} />}
         {statusLabel ? <p className="status-banner">{statusLabel}</p> : null}
       </section>

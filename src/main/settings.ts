@@ -14,10 +14,16 @@ export const defaultSettings: AppSettings = {
   overlayOpacity: 0.35,
   waveformWidthPercent: 84,
   waveformHeight: 150,
-  lineWidth: 2,
-  sensitivity: 1,
-  smoothing: 0.75,
-  idleAmplitude: 0.006,
+  lineWidth: 3,
+  waveformStyle: "wave",
+  waveformColorStart: "#7dd3fc",
+  waveformColorEnd: "#f0abfc",
+  waveformFillOpacity: 0.28,
+  waveformGlow: 18,
+  barGap: 3,
+  sensitivity: 1.35,
+  smoothing: 0.72,
+  idleAmplitude: 0.01,
   textScale: 1
 };
 
