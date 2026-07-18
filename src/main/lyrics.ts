@@ -1,3 +1,5 @@
+import { log } from "./logger";
+
 export interface LyricsQuery {
   artist: string;
   title: string;
@@ -6,6 +8,8 @@ export interface LyricsQuery {
 }
 
 interface LyricsResponse {
+  trackName?: string;
+  artistName?: string;
   syncedLyrics?: string | null;
   instrumental?: boolean;
 }
@@ -15,7 +19,14 @@ interface TimedLyricLine {
   text: string;
 }
 
-const lyricsCache = new Map<string, TimedLyricLine[] | null>();
+interface LyricsCacheEntry {
+  lines: TimedLyricLine[] | null;
+  timestamp: number;
+}
+
+const lyricsCache = new Map<string, LyricsCacheEntry>();
+const loggedKeys = new Set<string>();
+const missTtlMs = 5 * 60 * 1000;
 
 function cleanText(value: string): string {
   return value
@@ -23,6 +34,17 @@ function cleanText(value: string): string {
     .replace(/\s*\[[^\]]*(official|audio|video|lyrics|remaster|remastered)[^\]]*\]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function splitTitleArtist(title: string): { artist: string; title: string } | null {
+  const match = title.match(/^(.+?)\s[-–—]\s(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    artist: cleanText(match[1]),
+    title: cleanText(match[2])
+  };
 }
 
 function cacheKey(query: LyricsQuery): string {
@@ -82,28 +104,51 @@ export function lyricLineAt(lines: TimedLyricLine[] | null, position: number): s
   return activeIndex >= 0 ? lines[activeIndex].text : "";
 }
 
-async function fetchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null> {
-  if (!query.title || !query.artist) {
+function lyricQueries(query: LyricsQuery): Array<{ artist: string; title: string; album: string }> {
+  const artist = cleanText(query.artist);
+  const title = cleanText(query.title);
+  const album = cleanText(query.album);
+  const fromTitle = splitTitleArtist(title);
+  return Array.from(
+    new Map(
+      [
+        { artist, title, album },
+        fromTitle ? { ...fromTitle, album } : null
+      ]
+        .filter((item): item is { artist: string; title: string; album: string } => Boolean(item?.artist && item.title))
+        .map((item) => [`${item.artist}::${item.title}::${item.album}`, item])
+    ).values()
+  );
+}
+
+function parseLyricsPayload(payload: LyricsResponse | null): TimedLyricLine[] | null {
+  if (!payload?.syncedLyrics || payload.instrumental) {
     return null;
   }
+  const lines = parseSyncedLyrics(payload.syncedLyrics);
+  return lines.length ? lines : null;
+}
 
+async function fetchExactLyrics(
+  query: LyricsQuery,
+  candidate: { artist: string; title: string; album: string }
+): Promise<TimedLyricLine[] | null> {
   const baseParams = new URLSearchParams({
-    track_name: cleanText(query.title),
-    artist_name: cleanText(query.artist)
+    track_name: candidate.title,
+    artist_name: candidate.artist
   });
-  const album = cleanText(query.album);
-  if (album) {
-    baseParams.set("album_name", album);
+  if (candidate.album) {
+    baseParams.set("album_name", candidate.album);
   }
 
-  const candidates = [baseParams];
+  const attempts = [baseParams];
   if (query.duration > 0) {
     const withDuration = new URLSearchParams(baseParams);
     withDuration.set("duration", String(Math.round(query.duration)));
-    candidates.unshift(withDuration);
+    attempts.unshift(withDuration);
   }
 
-  for (const params of candidates) {
+  for (const params of attempts) {
     const response = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
       headers: {
         "User-Agent": "musicvis/0.1.0"
@@ -114,11 +159,62 @@ async function fetchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null>
       continue;
     }
 
-    const payload = (await response.json()) as LyricsResponse;
-    if (payload.instrumental || !payload.syncedLyrics) {
+    const lines = parseLyricsPayload((await response.json()) as LyricsResponse);
+    if (lines) {
+      return lines;
+    }
+  }
+
+  return null;
+}
+
+async function fetchSearchLyrics(
+  candidate: { artist: string; title: string; album: string }
+): Promise<TimedLyricLine[] | null> {
+  const attempts = [
+    new URLSearchParams({
+      track_name: candidate.title,
+      artist_name: candidate.artist
+    }),
+    new URLSearchParams({
+      q: [candidate.artist, candidate.title, candidate.album].filter(Boolean).join(" ")
+    })
+  ];
+
+  for (const params of attempts) {
+    const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`, {
+      headers: {
+        "User-Agent": "musicvis/0.1.0"
+      }
+    }).catch(() => null);
+
+    if (!response?.ok) {
       continue;
     }
-    return parseSyncedLyrics(payload.syncedLyrics);
+
+    const payload = (await response.json()) as LyricsResponse[];
+    for (const item of payload) {
+      const lines = parseLyricsPayload(item);
+      if (lines) {
+        return lines;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function fetchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null> {
+  for (const candidate of lyricQueries(query)) {
+    const exact = await fetchExactLyrics(query, candidate);
+    if (exact) {
+      return exact;
+    }
+
+    const searched = await fetchSearchLyrics(candidate);
+    if (searched) {
+      return searched;
+    }
   }
 
   return null;
@@ -126,8 +222,18 @@ async function fetchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null>
 
 export async function resolveCurrentLyricLine(query: LyricsQuery, position: number): Promise<string> {
   const key = cacheKey(query);
-  if (!lyricsCache.has(key)) {
-    lyricsCache.set(key, await fetchLyrics(query));
+  const cached = lyricsCache.get(key);
+  if (!cached || (!cached.lines && Date.now() - cached.timestamp > missTtlMs)) {
+    const lines = await fetchLyrics(query);
+    lyricsCache.set(key, {
+      lines,
+      timestamp: Date.now()
+    });
+    if (!loggedKeys.has(key)) {
+      loggedKeys.add(key);
+      const label = [cleanText(query.artist), cleanText(query.title)].filter(Boolean).join(" - ");
+      log("info", lines ? `Lyrics found for ${label}: ${lines.length} synced lines` : `No synced lyrics found for ${label}`);
+    }
   }
-  return lyricLineAt(lyricsCache.get(key) ?? null, position);
+  return lyricLineAt(lyricsCache.get(key)?.lines ?? null, position);
 }
