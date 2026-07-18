@@ -67,8 +67,8 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
         var monoSamples = [Float]()
         monoSamples.reserveCapacity(min(sampleCount, 512))
 
-        let stride = max(1, sampleCount / 512)
-        for index in stride(from: 0, to: sampleCount, by: stride) {
+        let sampleStride = max(1, sampleCount / 512)
+        for index in stride(from: 0, to: sampleCount, by: sampleStride) {
             monoSamples.append(max(-1, min(1, bufferPointer[index])))
         }
 
