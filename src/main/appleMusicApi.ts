@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import { log } from "./logger";
+import { debugLog, log } from "./logger";
 
 const apiCache = new Map<string, string>();
 
@@ -46,6 +46,7 @@ function queryCandidates(query: ArtworkQuery): string[] {
 async function downloadArtwork(url: string, cacheKey: string): Promise<string | null> {
   const image = await fetch(url).catch(() => null);
   if (!image?.ok) {
+    debugLog("artwork", `download failed http=${image?.status ?? "network"} url="${url}"`);
     return null;
   }
 
@@ -56,16 +57,19 @@ async function downloadArtwork(url: string, cacheKey: string): Promise<string | 
   const arrayBuffer = await image.arrayBuffer();
   fs.writeFileSync(outPath, Buffer.from(arrayBuffer));
   apiCache.set(cacheKey, outPath);
+  debugLog("artwork", `download ok path="${outPath}"`);
   return outPath;
 }
 
 async function resolveArtworkFromDeveloperApi(query: ArtworkQuery, cacheKey: string): Promise<string | null> {
   const token = process.env.APPLE_MUSIC_DEVELOPER_TOKEN;
   if (!token) {
+    debugLog("artwork", "apple-music-api skip reason=no-token");
     return null;
   }
 
   for (const candidate of queryCandidates(query)) {
+    debugLog("artwork", `apple-music-api request candidate="${candidate}"`);
     const term = encodeURIComponent(candidate);
     const response = await fetch(
       `https://api.music.apple.com/v1/catalog/us/search?types=songs,albums&limit=3&term=${term}`,
@@ -106,6 +110,7 @@ async function resolveArtworkFromDeveloperApi(query: ArtworkQuery, cacheKey: str
       payload.results?.songs?.data?.[0]?.attributes?.artwork?.url ??
       payload.results?.albums?.data?.[0]?.attributes?.artwork?.url;
     if (!urlTemplate) {
+      debugLog("artwork", `apple-music-api empty candidate="${candidate}"`);
       continue;
     }
 
@@ -121,6 +126,7 @@ async function resolveArtworkFromDeveloperApi(query: ArtworkQuery, cacheKey: str
 
 async function resolveArtworkFromItunesSearch(query: ArtworkQuery, cacheKey: string): Promise<string | null> {
   for (const candidate of queryCandidates(query)) {
+    debugLog("artwork", `itunes request candidate="${candidate}"`);
     const term = encodeURIComponent(candidate);
     const response = await fetch(
       `https://itunes.apple.com/search?media=music&entity=song,album&limit=5&term=${term}`
@@ -140,6 +146,7 @@ async function resolveArtworkFromItunesSearch(query: ArtworkQuery, cacheKey: str
     const artworkUrl = payload.results?.find((item) => item.artworkUrl100 || item.artworkUrl600);
     const sourceUrl = artworkUrl?.artworkUrl600 ?? artworkUrl?.artworkUrl100;
     if (!sourceUrl) {
+      debugLog("artwork", `itunes empty candidate="${candidate}"`);
       continue;
     }
 
@@ -157,6 +164,7 @@ export async function resolveArtworkFromAppleMusicApi(query: ArtworkQuery): Prom
   const cacheKey = `${query.artist}::${query.title}::${query.album}`;
   const existing = apiCache.get(cacheKey);
   if (existing && fs.existsSync(existing)) {
+    debugLog("artwork", `api-cache hit path="${existing}"`);
     return existing;
   }
 

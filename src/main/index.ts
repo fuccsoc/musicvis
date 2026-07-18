@@ -6,6 +6,7 @@ import { getSettings } from "./settings";
 import type { AppSettings, TrackInfo } from "./types";
 import { createMainWindow } from "./window";
 import { registerArtworkProtocolHandler, registerArtworkProtocolScheme } from "./artworkProtocol";
+import { debugLog } from "./logger";
 
 let mainWindow: BrowserWindow | null = null;
 let helper: AudioHelperManager | null = null;
@@ -30,6 +31,7 @@ function applySettings(window: BrowserWindow, settings: AppSettings): void {
 
 async function pollTrack(window: BrowserWindow): Promise<void> {
   if (requestInFlight) {
+    debugLog("poll", "skip reason=request-in-flight");
     return;
   }
   requestInFlight = true;
@@ -43,7 +45,15 @@ async function pollTrack(window: BrowserWindow): Promise<void> {
   const nextSignature = [track?.id ?? "", track?.lyricLine ?? "", positionBucket].join("\u001f");
   if (nextSignature !== lastTrackSignature) {
     lastTrackSignature = nextSignature;
+    debugLog(
+      "poll",
+      track
+        ? `emit track="${track.artist} - ${track.title}" position=${track.position.toFixed(2)} lyric="${track.lyricLine}"`
+        : "emit no-track"
+    );
     emitTrackChanged(window, track);
+  } else {
+    debugLog("poll", "skip reason=same-signature");
   }
 }
 

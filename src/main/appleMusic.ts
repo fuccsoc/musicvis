@@ -6,7 +6,7 @@ import { app } from "electron";
 import type { PlaybackState, TrackInfo } from "./types";
 import { resolveArtworkFromAppleMusicApi } from "./appleMusicApi";
 import { resolveCurrentLyricLine } from "./lyrics";
-import { log } from "./logger";
+import { debugLog, log } from "./logger";
 
 const execFileAsync = promisify(execFile);
 const SEP = "\u001f";
@@ -229,19 +229,26 @@ export function parseSwiftMediaRemoteResponse(raw: string): ParsedAppleScript | 
 async function getTrackFromSwiftMediaRemote(): Promise<ParsedAppleScript | null> {
   const helperPath = mediaRemoteHelperPath();
   if (!fs.existsSync(helperPath)) {
+    debugLog("metadata", `swift-helper missing path="${helperPath}"`);
     return null;
   }
 
   try {
+    debugLog("metadata", `swift-helper start path="${helperPath}"`);
     const { stdout } = await execFileAsync(helperPath, [], {
       timeout: 4000,
       windowsHide: true
     });
-    return parseSwiftMediaRemoteResponse(stdout);
+    const parsed = parseSwiftMediaRemoteResponse(stdout);
+    debugLog(
+      "metadata",
+      parsed
+        ? `swift-helper ok track="${parsed.artist} - ${parsed.title}" position=${parsed.position.toFixed(2)} state=${parsed.playbackState}`
+        : `swift-helper empty stdout="${stdout.trim().slice(0, 160)}"`
+    );
+    return parsed;
   } catch (error) {
-    if (debugLyrics) {
-      log("warn", `Swift MediaRemote helper failed: ${String(error)}`);
-    }
+    debugLog("metadata", `swift-helper failed error="${String(error)}"`);
     return null;
   }
 }
@@ -424,28 +431,51 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
   try {
     let parsed: ParsedAppleScript | null = await getTrackFromSwiftMediaRemote();
     try {
-      parsed ??= parseMediaRemoteResponse(await runJavaScriptForAutomation(mediaRemoteMetadataScript()));
+      if (!parsed) {
+        debugLog("metadata", "jxa-mediaremote start");
+        parsed = parseMediaRemoteResponse(await runJavaScriptForAutomation(mediaRemoteMetadataScript()));
+        debugLog(
+          "metadata",
+          parsed
+            ? `jxa-mediaremote ok track="${parsed.artist} - ${parsed.title}" position=${parsed.position.toFixed(2)} state=${parsed.playbackState}`
+            : "jxa-mediaremote empty"
+        );
+      }
     } catch (error) {
       log("warn", `MediaRemote request failed: ${String(error)}`);
     }
 
-    parsed ??= parseAppleScriptResponse(await runAppleScript(trackMetadataScript()));
     if (!parsed) {
+      debugLog("metadata", "applescript start");
+      parsed = parseAppleScriptResponse(await runAppleScript(trackMetadataScript()));
+      debugLog(
+        "metadata",
+        parsed
+          ? `applescript ok track="${parsed.artist} - ${parsed.title}" position=${parsed.position.toFixed(2)} state=${parsed.playbackState}`
+          : "applescript empty"
+      );
+    }
+    if (!parsed) {
+      debugLog("metadata", "no-track");
       return null;
     }
     const estimatedPosition = estimatePlaybackPosition(parsed);
 
     let artworkPath = artworkCache.get(parsed.id) ?? null;
     if ((!artworkPath || !fs.existsSync(artworkPath)) && parsed.sourceName === "Music") {
+      debugLog("artwork", `local-music-artwork start id="${parsed.id}"`);
       artworkPath = await saveArtworkByAppleScript(parsed.id);
+      debugLog("artwork", artworkPath ? `local-music-artwork hit path="${artworkPath}"` : "local-music-artwork miss");
     }
 
     if (!artworkPath) {
+      debugLog("artwork", `api-artwork start track="${parsed.artist} - ${parsed.title}"`);
       artworkPath = await resolveArtworkFromAppleMusicApi({
         artist: parsed.artist,
         title: parsed.title,
         album: parsed.album
       }).catch(() => null);
+      debugLog("artwork", artworkPath ? `api-artwork hit path="${artworkPath}"` : "api-artwork miss");
     }
 
     const lyricLine = await resolveCurrentLyricLine(
@@ -457,6 +487,10 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
       },
       estimatedPosition
     ).catch(() => "");
+    debugLog(
+      "track",
+      `ready provider="${parsed.sourceName}" track="${parsed.artist} - ${parsed.title}" position=${estimatedPosition.toFixed(2)} state=${parsed.playbackState} lyric="${lyricLine}"`
+    );
 
     return {
       ...parsed,

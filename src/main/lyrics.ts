@@ -1,4 +1,4 @@
-import { log } from "./logger";
+import { debugLog, log } from "./logger";
 
 export interface LyricsQuery {
   artist: string;
@@ -208,20 +208,25 @@ function parseMusixmatchPayload(raw: string | undefined): TimedLyricLine[] | nul
 async function musixmatchGet<T>(method: string, params: URLSearchParams): Promise<T | null> {
   const apiKey = process.env.MUSIXMATCH_API_KEY;
   if (!apiKey) {
+    debugLog("lyrics", `musixmatch skip method=${method} reason=no-api-key`);
     return null;
   }
 
   params.set("apikey", apiKey);
+  debugLog("lyrics", `musixmatch request method=${method}`);
   const response = await fetch(`https://api.musixmatch.com/ws/1.1/${method}?${params.toString()}`).catch(() => null);
   if (!response?.ok) {
+    debugLog("lyrics", `musixmatch failed method=${method} http=${response?.status ?? "network"}`);
     return null;
   }
 
   const payload = (await response.json()) as MusixmatchMessage<T>;
   const status = payload.message?.header?.status_code ?? 0;
   if (status !== 200) {
+    debugLog("lyrics", `musixmatch rejected method=${method} status=${status}`);
     return null;
   }
+  debugLog("lyrics", `musixmatch ok method=${method}`);
   return payload.message?.body ?? null;
 }
 
@@ -289,17 +294,21 @@ async function fetchMusixmatchByTrackId(
 
 async function fetchMusixmatchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null> {
   if (!process.env.MUSIXMATCH_API_KEY) {
+    debugLog("lyrics", "musixmatch provider skip reason=no-api-key");
     return null;
   }
 
   for (const candidate of lyricQueries(query)) {
+    debugLog("lyrics", `musixmatch candidate artist="${candidate.artist}" title="${candidate.title}" album="${candidate.album}"`);
     const matchedSubtitle = await fetchMusixmatchByMatcher(query, candidate);
     if (matchedSubtitle) {
+      debugLog("lyrics", `musixmatch hit source=matcher lines=${matchedSubtitle.length}`);
       return matchedSubtitle;
     }
 
     const trackSubtitle = await fetchMusixmatchByTrackId(query, candidate);
     if (trackSubtitle) {
+      debugLog("lyrics", `musixmatch hit source=track lines=${trackSubtitle.length}`);
       return trackSubtitle;
     }
   }
@@ -327,6 +336,7 @@ async function fetchExactLyrics(
   }
 
   for (const params of attempts) {
+    debugLog("lyrics", `lrclib exact request params="${params.toString()}"`);
     const response = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
       headers: {
         "User-Agent": "musicvis/0.1.0"
@@ -334,13 +344,16 @@ async function fetchExactLyrics(
     }).catch(() => null);
 
     if (!response?.ok) {
+      debugLog("lyrics", `lrclib exact failed http=${response?.status ?? "network"}`);
       continue;
     }
 
     const lines = parseLyricsPayload((await response.json()) as LyricsResponse);
     if (lines) {
+      debugLog("lyrics", `lrclib exact hit lines=${lines.length}`);
       return lines;
     }
+    debugLog("lyrics", "lrclib exact empty");
   }
 
   return null;
@@ -360,6 +373,7 @@ async function fetchSearchLyrics(
   ];
 
   for (const params of attempts) {
+    debugLog("lyrics", `lrclib search request params="${params.toString()}"`);
     const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`, {
       headers: {
         "User-Agent": "musicvis/0.1.0"
@@ -367,13 +381,16 @@ async function fetchSearchLyrics(
     }).catch(() => null);
 
     if (!response?.ok) {
+      debugLog("lyrics", `lrclib search failed http=${response?.status ?? "network"}`);
       continue;
     }
 
     const payload = (await response.json()) as LyricsResponse[];
+    debugLog("lyrics", `lrclib search results=${payload.length}`);
     for (const item of payload) {
       const lines = parseLyricsPayload(item);
       if (lines) {
+        debugLog("lyrics", `lrclib search hit lines=${lines.length}`);
         return lines;
       }
     }
@@ -407,6 +424,7 @@ export async function resolveCurrentLyricLine(query: LyricsQuery, position: numb
   const key = cacheKey(query);
   const cached = lyricsCache.get(key);
   if (!cached || (!cached.lines && Date.now() - cached.timestamp > missTtlMs)) {
+    debugLog("lyrics", cached ? `cache retry key="${key}"` : `cache miss key="${key}"`);
     const lines = await fetchLyrics(query);
     lyricsCache.set(key, {
       lines,
@@ -417,6 +435,8 @@ export async function resolveCurrentLyricLine(query: LyricsQuery, position: numb
       const label = [cleanText(query.artist), cleanText(query.title)].filter(Boolean).join(" - ");
       log("info", lines ? `Lyrics found for ${label}: ${lines.length} synced lines` : `No synced lyrics found for ${label}`);
     }
+  } else {
+    debugLog("lyrics", `cache hit key="${key}" lines=${cached.lines?.length ?? 0}`);
   }
   const lines = lyricsCache.get(key)?.lines ?? null;
   const line = lyricLineAt(lines, position);
