@@ -7,6 +7,7 @@ declare global {
       onTrackChanged(callback: (track: TrackInfo | null) => void): () => void;
       onAudioSamples(callback: (event: Extract<HelperEvent, { type: "audio" }>) => void): () => void;
       onAudioStatus(callback: (event: Exclude<HelperEvent, { type: "audio" }>) => void): () => void;
+      onFullscreenChanged(callback: (fullscreen: boolean) => void): () => void;
       getSettings(): Promise<AppSettings>;
       updateSettings(settings: Partial<AppSettings>): Promise<AppSettings>;
       toggleFullscreen(): Promise<void>;

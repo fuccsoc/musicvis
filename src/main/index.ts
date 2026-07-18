@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import { getCurrentTrack } from "./appleMusic";
 import { AudioHelperManager } from "./audioHelper";
-import { emitHelperEvent, emitTrackChanged, setupIpc } from "./ipc";
+import { emitFullscreenChanged, emitHelperEvent, emitTrackChanged, setupIpc } from "./ipc";
 import { getSettings } from "./settings";
 import type { AppSettings, TrackInfo } from "./types";
 import { createMainWindow } from "./window";
@@ -82,6 +82,14 @@ app.whenReady().then(() => {
     if (input.meta && input.key === "," && input.type === "keyDown") {
       window.webContents.send("visualizer:openSettings");
     }
+  });
+
+  window.on("enter-full-screen", () => {
+    emitFullscreenChanged(window, true);
+  });
+
+  window.on("leave-full-screen", () => {
+    emitFullscreenChanged(window, false);
   });
 
   window.on("closed", () => {

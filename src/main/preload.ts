@@ -8,6 +8,7 @@ const IPC_CHANNELS = {
   TRACK_CHANGED: "visualizer:trackChanged",
   AUDIO_SAMPLES: "visualizer:audioSamples",
   AUDIO_STATUS: "visualizer:audioStatus",
+  FULLSCREEN_CHANGED: "visualizer:fullscreenChanged",
   GET_SETTINGS: "visualizer:getSettings",
   UPDATE_SETTINGS: "visualizer:updateSettings",
   TOGGLE_FULLSCREEN: "visualizer:toggleFullscreen",
@@ -32,6 +33,8 @@ const api = {
     onChannel<Extract<HelperEvent, { type: "audio" }>>(IPC_CHANNELS.AUDIO_SAMPLES, callback),
   onAudioStatus: (callback: (event: Exclude<HelperEvent, { type: "audio" }>) => void): Unsubscribe =>
     onChannel<Exclude<HelperEvent, { type: "audio" }>>(IPC_CHANNELS.AUDIO_STATUS, callback),
+  onFullscreenChanged: (callback: (fullscreen: boolean) => void): Unsubscribe =>
+    onChannel<boolean>(IPC_CHANNELS.FULLSCREEN_CHANGED, callback),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
   updateSettings: (settings: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SETTINGS, settings),

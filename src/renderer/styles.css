@@ -19,6 +19,11 @@ body,
   height: 100%;
 }
 
+.app-cursor-hidden,
+.app-cursor-hidden * {
+  cursor: none;
+}
+
 .background-root,
 .background-image,
 .background-fallback,

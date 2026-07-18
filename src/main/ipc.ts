@@ -7,6 +7,7 @@ export const IPC_CHANNELS = {
   TRACK_CHANGED: "visualizer:trackChanged",
   AUDIO_SAMPLES: "visualizer:audioSamples",
   AUDIO_STATUS: "visualizer:audioStatus",
+  FULLSCREEN_CHANGED: "visualizer:fullscreenChanged",
   GET_SETTINGS: "visualizer:getSettings",
   UPDATE_SETTINGS: "visualizer:updateSettings",
   TOGGLE_FULLSCREEN: "visualizer:toggleFullscreen",
@@ -57,4 +58,8 @@ export function emitHelperEvent(mainWindow: BrowserWindow, event: HelperEvent): 
   } else {
     mainWindow.webContents.send(IPC_CHANNELS.AUDIO_STATUS, event);
   }
+}
+
+export function emitFullscreenChanged(mainWindow: BrowserWindow, fullscreen: boolean): void {
+  mainWindow.webContents.send(IPC_CHANNELS.FULLSCREEN_CHANGED, fullscreen);
 }
