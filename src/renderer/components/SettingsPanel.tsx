@@ -109,7 +109,7 @@ export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
         <input
           type="range"
           min={12}
-          max={220}
+          max={384}
           step={1}
           value={settings.spectrumBucketCount}
           onChange={updateNumber("spectrumBucketCount")}
