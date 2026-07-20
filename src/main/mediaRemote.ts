@@ -11,6 +11,7 @@ import { debugLog, log } from "./logger";
 const execFileAsync = promisify(execFile);
 const artworkCache = new Map<string, string>();
 const debugLyrics = process.env.MUSICVIS_DEBUG_LYRICS === "1";
+const swiftHelperFailureBackoffMs = 2500;
 let lastPlaybackDebugAt = 0;
 let swiftHelperFailures = 0;
 let swiftHelperDisabledUntil = 0;
@@ -128,22 +129,18 @@ async function runSwiftMediaRemoteHelper(): Promise<ParsedMediaRemoteTrack | nul
       windowsHide: true
     });
     const parsed = parseSwiftMediaRemoteResponse(stdout);
-    swiftHelperFailures = parsed ? 0 : swiftHelperFailures + 1;
+    swiftHelperFailures = parsed ? 0 : swiftHelperFailures;
     debugLog(
       "metadata",
       parsed
         ? `swift-helper ok track="${parsed.artist} - ${parsed.title}" position=${parsed.position.toFixed(2)} state=${parsed.playbackState}`
-        : `swift-helper empty stdout="${stdout.trim().slice(0, 160)}"`
+        : `swift-helper empty no-circuit stdout="${stdout.trim().slice(0, 160)}"`
     );
-    if (!parsed && swiftHelperFailures >= 2) {
-      swiftHelperDisabledUntil = Date.now() + 60_000;
-      debugLog("metadata", "swift-helper circuit-open reason=empty-response");
-    }
     return parsed;
   } catch (error) {
     swiftHelperFailures += 1;
     if (swiftHelperFailures >= 2) {
-      swiftHelperDisabledUntil = Date.now() + 60_000;
+      swiftHelperDisabledUntil = Date.now() + swiftHelperFailureBackoffMs;
     }
     debugLog("metadata", `swift-helper failed ${commandErrorDetails(error)}`);
     if (swiftHelperDisabledUntil > Date.now()) {
