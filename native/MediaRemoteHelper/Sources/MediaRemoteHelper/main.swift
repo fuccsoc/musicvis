@@ -35,7 +35,9 @@ func mediaPayload(from trackInfo: TrackInfo) -> [String: Any] {
         "position": max(0, elapsed),
         "playbackState": payload.isPlaying == false ? "paused" : "playing",
         "playbackRate": payload.playbackRate ?? NSNull(),
-        "bundleIdentifier": payload.bundleIdentifier ?? ""
+        "bundleIdentifier": payload.bundleIdentifier ?? "",
+        "artworkDataBase64": payload.artworkDataBase64 ?? NSNull(),
+        "artworkMimeType": payload.artworkMimeType ?? NSNull()
     ]
 }
 

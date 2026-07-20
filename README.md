@@ -1,6 +1,6 @@
 # musicvis
 
-Минималистичный macOS-визуализатор для Apple Music на Electron + React + TypeScript + Swift (ScreenCaptureKit).
+Минималистичный macOS-визуализатор для системного Now Playing на Electron + React + TypeScript + Swift (ScreenCaptureKit).
 
 ![Screenshot placeholder](https://via.placeholder.com/1280x720/111111/FFFFFF?text=musicvis+placeholder)
 
@@ -10,7 +10,7 @@
 - Node.js 20+
 - npm 10+
 - Xcode Command Line Tools (`xcode-select --install`)
-- Music.app должна быть запущена
+- Любой плеер, который публикует Now Playing metadata в macOS MediaRemote
 
 ## Установка
 
@@ -40,27 +40,17 @@ npm run build:mac
 `electron-builder` включает `resources/native/AudioCaptureHelper` через `extraResources`.
 
 `build:native` также собирает `MediaRemoteHelper` на базе Swift package
-`ejbills/mediaremote-adapter`. Если helper собран, приложение использует его как
-основной источник metadata/position и откатывается на JXA/AppleScript при ошибке.
+`ejbills/mediaremote-adapter`. Он является единственным источником metadata,
+position и artwork; lyrics ищутся отдельно по artist/title/album.
 
 ## Разрешения macOS
 
 Приложение использует:
 
-1. **Automation Permission** (доступ к Music.app)
-   - System Settings → Privacy & Security → Automation
-2. **Screen Recording Permission** (системное аудио для waveform)
+1. **Screen Recording Permission** (системное аудио для waveform)
    - System Settings → Privacy & Security → Screen Recording
 
 Без Screen Recording metadata продолжают работать, но waveform будет отключён.
-
-## Apple Music API (опционально)
-
-Fallback-поиск обложки использует:
-
-- `APPLE_MUSIC_DEVELOPER_TOKEN`
-
-Без токена приложение работает с локальной обложкой или тёмным градиентом.
 
 ## Lyrics providers (опционально)
 
@@ -77,7 +67,11 @@ Musixmatch на бесплатных/ограниченных планах мо�
 MUSICVIS_DEBUG=1 npm run dev
 ```
 
-Старый `MUSICVIS_DEBUG_LYRICS=1` тоже включает debug-логи.
+Для компактного лога только текущих строк lyrics:
+
+```bash
+MUSICVIS_DEBUG_LYRICS=1 npm run dev
+```
 
 ## Сброс настроек
 
@@ -89,11 +83,11 @@ MUSICVIS_DEBUG=1 npm run dev
 
 - На non-macOS `build-native` пропускается.
 - Для waveform требуется системное разрешение Screen Recording.
-- Если Music.app не запущена, приложение показывает idle-состояние.
+- Если ни один плеер не публикует Now Playing metadata, приложение показывает idle-состояние.
 
 ## Troubleshooting
 
-- Проверьте, что Music.app запущена и воспроизводит трек.
-- Повторно выдайте Automation/Screen Recording permissions.
+- Проверьте, что плеер воспроизводит трек и виден в системном Now Playing.
+- Повторно выдайте Screen Recording permission.
 - Если helper не стартует, пересоберите: `npm run build:native`.
 - Если JSON настроек повреждён, удалите `settings.json`.

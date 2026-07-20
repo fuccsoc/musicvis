@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from "electron";
-import { getCurrentTrack } from "./appleMusic";
+import { getCurrentTrack } from "./mediaRemote";
 import { AudioHelperManager } from "./audioHelper";
 import { emitFullscreenChanged, emitHelperEvent, emitTrackChanged, setupIpc } from "./ipc";
 import { getSettings } from "./settings";
