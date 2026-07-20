@@ -1,5 +1,7 @@
 appId: com.fuccsoc.musicvis
 productName: musicvis
+directories:
+  output: release
 files:
   - dist/**
   - package.json
