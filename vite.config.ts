@@ -4,8 +4,11 @@ import { resolve } from "node:path";
 
 export default defineConfig({
   plugins: [react()],
+  root: "src/renderer",
+  base: "./",
   build: {
-    outDir: "dist/renderer"
+    outDir: "../../dist/renderer",
+    emptyOutDir: true
   },
   test: {
     environment: "jsdom",
