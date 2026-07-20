@@ -74,6 +74,7 @@
     ],
     "mac": {
       "category": "public.app-category.music",
+      "identity": null,
       "target": [
         "dmg",
         "zip"
