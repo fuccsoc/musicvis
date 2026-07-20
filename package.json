@@ -50,6 +50,34 @@
     "wait-on": "^9.0.10"
   },
   "build": {
-    "extends": null
+    "extends": null,
+    "appId": "com.fuccsoc.musicvis",
+    "productName": "musicvis",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/native",
+        "to": "native",
+        "filter": [
+          "AudioCaptureHelper",
+          "MediaRemoteHelper",
+          "libMediaRemoteAdapter.dylib",
+          "MediaRemoteAdapter.framework/**"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    }
   }
 }
