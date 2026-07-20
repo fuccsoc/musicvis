@@ -68,6 +68,23 @@ function fft(real: number[], imag: number[]): void {
   }
 }
 
+function frequencyBucketEdges(bucketCount: number, minBin: number, maxExclusiveBin: number): number[] {
+  const availableBins = maxExclusiveBin - minBin;
+  const safeBucketCount = Math.max(1, Math.min(bucketCount, availableBins));
+  const edges = [minBin];
+
+  for (let index = 1; index < safeBucketCount; index += 1) {
+    const ratio = index / safeBucketCount;
+    const raw = minBin * Math.pow(maxExclusiveBin / minBin, ratio);
+    const minEdge = edges[index - 1] + 1;
+    const maxEdge = maxExclusiveBin - (safeBucketCount - index);
+    edges.push(Math.max(minEdge, Math.min(maxEdge, Math.round(raw))));
+  }
+
+  edges.push(maxExclusiveBin);
+  return edges;
+}
+
 export function calculateSpectrumBuckets(samples: number[], bucketCount: number, bassLevel = 0.62): number[] {
   if (!samples.length || bucketCount <= 0) {
     return [];
@@ -92,21 +109,20 @@ export function calculateSpectrumBuckets(samples: number[], bucketCount: number,
 
   const output: number[] = [];
   const minBin = 1;
-  const maxBin = binCount - 1;
-  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
-    const startRatio = bucketIndex / bucketCount;
-    const endRatio = (bucketIndex + 1) / bucketCount;
-    const startBin = Math.max(minBin, Math.floor(minBin * Math.pow(maxBin / minBin, startRatio)));
-    const endBin = Math.max(startBin + 1, Math.ceil(minBin * Math.pow(maxBin / minBin, endRatio)));
+  const edges = frequencyBucketEdges(bucketCount, minBin, binCount);
+  const effectiveBucketCount = edges.length - 1;
+  for (let bucketIndex = 0; bucketIndex < effectiveBucketCount; bucketIndex += 1) {
+    const startBin = edges[bucketIndex];
+    const endBin = edges[bucketIndex + 1];
     let energy = 0;
     let count = 0;
-    for (let bin = startBin; bin < Math.min(endBin, binCount); bin += 1) {
+    for (let bin = startBin; bin < endBin; bin += 1) {
       const magnitude = magnitudes[bin] ?? 0;
       energy += magnitude * magnitude;
       count += 1;
     }
     const rms = Math.sqrt(energy / Math.max(1, count));
-    const bucketRatio = bucketIndex / Math.max(1, bucketCount - 1);
+    const bucketRatio = bucketIndex / Math.max(1, effectiveBucketCount - 1);
     const bassRolloff = bassLevel + (1 - bassLevel) * Math.min(1, bucketRatio / 0.38);
     const normalized = (rms / (fftSize * 0.22)) * bassRolloff;
     output.push(Math.min(1, Math.pow(normalized, 0.62)));

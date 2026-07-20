@@ -35,6 +35,13 @@ describe("waveform math", () => {
     expect(spectrum.filter((value) => value >= 1)).toHaveLength(0);
   });
 
+  it("keeps dense spectrum buckets populated when fft bins are available", () => {
+    const tone = Array.from({ length: 1024 }, (_value, index) => Math.sin((2 * Math.PI * index * 12) / 1024));
+    const spectrum = calculateSpectrumBuckets(tone, 384);
+
+    expect(spectrum).toHaveLength(384);
+  });
+
   it("can attenuate low frequency buckets", () => {
     const tone = Array.from({ length: 512 }, (_value, index) => Math.sin((2 * Math.PI * index * 4) / 512));
     const fullBass = calculateSpectrumBuckets(tone, 48, 1);
