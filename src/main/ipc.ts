@@ -18,29 +18,33 @@ export const IPC_CHANNELS = {
 
 export function setupIpc(mainWindow: BrowserWindow, actions: {
   getCurrentTrack: () => Promise<TrackInfo | null>;
-  applySettings: (settings: AppSettings) => void;
+  applySettings: (settings: AppSettings, patch?: Partial<AppSettings>) => void;
 }): void {
   ipcMain.handle(IPC_CHANNELS.GET_CURRENT_TRACK, async () => actions.getCurrentTrack());
   ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, async () => getSettings());
   ipcMain.handle(IPC_CHANNELS.UPDATE_SETTINGS, async (_event, patch: Partial<AppSettings>) => {
     const settings = updateSettings(patch);
-    actions.applySettings(settings);
+    actions.applySettings(settings, patch);
     return settings;
   });
 
   ipcMain.handle(IPC_CHANNELS.TOGGLE_FULLSCREEN, () => {
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    const fullscreen = !mainWindow.isFullScreen();
+    const settings = updateSettings({ fullscreen });
+    actions.applySettings(settings, { fullscreen });
   });
 
   ipcMain.handle(IPC_CHANNELS.TOGGLE_ALWAYS_ON_TOP, () => {
-    mainWindow.setAlwaysOnTop(!mainWindow.isAlwaysOnTop());
+    const alwaysOnTop = !mainWindow.isAlwaysOnTop();
+    const settings = updateSettings({ alwaysOnTop });
+    actions.applySettings(settings, { alwaysOnTop });
   });
 
   ipcMain.handle(IPC_CHANNELS.TOGGLE_CLICK_THROUGH, () => {
     const meta = mainWindow as BrowserWindow & { __clickThrough?: boolean };
     const next = !meta.__clickThrough;
-    meta.__clickThrough = next;
-    mainWindow.setIgnoreMouseEvents(next, { forward: true });
+    const settings = updateSettings({ clickThrough: next });
+    actions.applySettings(settings, { clickThrough: next });
   });
 
   ipcMain.handle(IPC_CHANNELS.OPEN_SYSTEM_PREFERENCES, async () => {

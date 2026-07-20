@@ -74,9 +74,6 @@ export default function App() {
         event.preventDefault();
         setSettingsOpen((prev) => !prev);
       }
-      if (event.key.toLowerCase() === "f") {
-        void window.visualizerApi.toggleFullscreen();
-      }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);

@@ -2,7 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { getCurrentTrack } from "./mediaRemote";
 import { AudioHelperManager } from "./audioHelper";
 import { emitFullscreenChanged, emitHelperEvent, emitTrackChanged, setupIpc } from "./ipc";
-import { getSettings } from "./settings";
+import { getSettings, updateSettings } from "./settings";
 import type { AppSettings, TrackInfo } from "./types";
 import { createMainWindow } from "./window";
 import { registerArtworkProtocolHandler, registerArtworkProtocolScheme } from "./artworkProtocol";
@@ -17,15 +17,22 @@ const reliableSyncIntervalMs = 2000;
 
 registerArtworkProtocolScheme();
 
-function applySettings(window: BrowserWindow, settings: AppSettings): void {
-  window.setAlwaysOnTop(settings.alwaysOnTop);
-  window.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
-  if (settings.fullscreen !== window.isFullScreen()) {
+function applySettings(window: BrowserWindow, settings: AppSettings, patch?: Partial<AppSettings>): void {
+  const shouldApply = (key: keyof AppSettings): boolean => !patch || Object.prototype.hasOwnProperty.call(patch, key);
+  if (shouldApply("alwaysOnTop")) {
+    window.setAlwaysOnTop(settings.alwaysOnTop);
+  }
+  if (shouldApply("clickThrough")) {
+    const meta = window as BrowserWindow & { __clickThrough?: boolean };
+    meta.__clickThrough = settings.clickThrough;
+    window.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
+  }
+  if (shouldApply("fullscreen") && settings.fullscreen !== window.isFullScreen()) {
     window.setFullScreen(settings.fullscreen);
   }
-  if (settings.clickThrough) {
+  if (shouldApply("clickThrough") && settings.clickThrough) {
     app.dock?.hide();
-  } else {
+  } else if (shouldApply("clickThrough")) {
     app.dock?.show();
   }
 }
@@ -88,12 +95,21 @@ app.whenReady().then(() => {
 
   setupIpc(window, {
     getCurrentTrack,
-    applySettings: (settings) => applySettings(window, settings)
+    applySettings: (settings, patch) => applySettings(window, settings, patch)
   });
 
   window.webContents.on("before-input-event", (_event, input) => {
-    if (input.key.toLowerCase() === "f" && input.type === "keyDown") {
-      window.setFullScreen(!window.isFullScreen());
+    if (
+      input.key.toLowerCase() === "f" &&
+      input.type === "keyDown" &&
+      !input.isAutoRepeat &&
+      !input.meta &&
+      !input.control &&
+      !input.alt
+    ) {
+      const fullscreen = !window.isFullScreen();
+      const settings = updateSettings({ fullscreen });
+      applySettings(window, settings, { fullscreen });
     }
     if (input.key === "Escape" && input.type === "keyDown") {
       window.webContents.send("visualizer:escape");
@@ -104,10 +120,12 @@ app.whenReady().then(() => {
   });
 
   window.on("enter-full-screen", () => {
+    updateSettings({ fullscreen: true });
     emitFullscreenChanged(window, true);
   });
 
   window.on("leave-full-screen", () => {
+    updateSettings({ fullscreen: false });
     emitFullscreenChanged(window, false);
   });
 
