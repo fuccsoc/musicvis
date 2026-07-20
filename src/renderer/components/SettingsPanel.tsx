@@ -30,19 +30,6 @@ export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
         </button>
       </div>
 
-      <div className="settings-row">
-        <span>Mode</span>
-        <select
-          value={settings.waveformStyle}
-          onChange={(event) =>
-            onUpdate({ waveformStyle: event.target.value as AppSettings["waveformStyle"] })
-          }
-        >
-          <option value="wave">Wave</option>
-          <option value="bars">Bars</option>
-        </select>
-      </div>
-
       <label className="settings-row">
         <span>Show album</span>
         <input
@@ -161,18 +148,6 @@ export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
           step={1}
           value={settings.lineWidth}
           onChange={updateNumber("lineWidth")}
-        />
-      </label>
-
-      <label>
-        <span>Bar gap {settings.barGap}px</span>
-        <input
-          type="range"
-          min={0}
-          max={10}
-          step={1}
-          value={settings.barGap}
-          onChange={updateNumber("barGap")}
         />
       </label>
 
