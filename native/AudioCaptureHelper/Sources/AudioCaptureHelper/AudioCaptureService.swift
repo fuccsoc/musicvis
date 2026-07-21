@@ -38,24 +38,19 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
 
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             let configuration = SCStreamConfiguration()
-            configuration.width = display.width
-            configuration.height = display.height
             configuration.capturesAudio = true
             configuration.excludesCurrentProcessAudio = true
             configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
             configuration.sampleRate = 44_100
             configuration.channelCount = 1
 
-            debugLog("stream create requested capturesAudio=\(configuration.capturesAudio) width=\(configuration.width) height=\(configuration.height) sampleRate=\(configuration.sampleRate) channels=\(configuration.channelCount)")
+            debugLog("stream create requested capturesAudio=\(configuration.capturesAudio) sampleRate=\(configuration.sampleRate) channels=\(configuration.channelCount)")
             streamStopError = nil
             let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
             if let streamStopError {
                 throw streamStopError
             }
             self.stream = stream
-            debugLog("stream output add requested type=screen")
-            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
-            debugLog("stream output added type=screen")
             debugLog("stream output add requested type=audio")
             try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
             debugLog("stream output added type=audio")
@@ -145,7 +140,7 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     }
 
     private func debugLog(_ message: String) {
-        guard ProcessInfo.processInfo.environment["MUSICVIS_DEBUG"] == "1" else {
+        guard ProcessInfo.processInfo.environment["MUSICVIS_DEBUG_AUDIO"] == "1" else {
             return
         }
         fputs("[AudioCaptureHelper] \(message)\n", stderr)

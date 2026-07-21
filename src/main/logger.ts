@@ -19,8 +19,8 @@ export function log(level: "info" | "warn" | "error", message: string): void {
   }
 }
 
-export function debugLog(scope: string, message: string): void {
-  if (process.env.MUSICVIS_DEBUG !== "1") {
+export function debugLog(scope: string, message: string, envVar = "MUSICVIS_DEBUG"): void {
+  if (process.env[envVar] !== "1") {
     return;
   }
   log("info", `debug:${scope} ${message}`);

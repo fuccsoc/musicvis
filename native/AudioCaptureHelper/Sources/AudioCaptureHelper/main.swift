@@ -1,7 +1,7 @@
 import Foundation
 
 func debugLog(_ message: String) {
-    guard ProcessInfo.processInfo.environment["MUSICVIS_DEBUG"] == "1" else {
+    guard ProcessInfo.processInfo.environment["MUSICVIS_DEBUG_AUDIO"] == "1" else {
         return
     }
     fputs("[AudioCaptureHelper] \(message)\n", stderr)

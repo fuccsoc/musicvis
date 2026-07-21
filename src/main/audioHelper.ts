@@ -54,7 +54,7 @@ function probeCommand(command: string, args: string[]): string {
 }
 
 function debugHelperPreflight(helperPath: string): void {
-  if (process.env.MUSICVIS_DEBUG !== "1") {
+  if (process.env.MUSICVIS_DEBUG_AUDIO !== "1") {
     return;
   }
 
@@ -62,14 +62,19 @@ function debugHelperPreflight(helperPath: string): void {
     const stat = fs.statSync(helperPath);
     debugLog(
       "audio-helper",
-      `preflight file mode=${(stat.mode & 0o777).toString(8)} size=${stat.size} mtime=${stat.mtime.toISOString()}`
+      `preflight file mode=${(stat.mode & 0o777).toString(8)} size=${stat.size} mtime=${stat.mtime.toISOString()}`,
+      "MUSICVIS_DEBUG_AUDIO"
     );
   } catch (error) {
-    debugLog("audio-helper", `preflight stat failed error="${String(error)}"`);
+    debugLog("audio-helper", `preflight stat failed error="${String(error)}"`, "MUSICVIS_DEBUG_AUDIO");
   }
 
-  debugLog("audio-helper", `preflight codesign="${probeCommand("codesign", ["-dv", "--verbose=4", helperPath])}"`);
-  debugLog("audio-helper", `preflight xattr="${probeCommand("xattr", ["-l", helperPath])}"`);
+  debugLog(
+    "audio-helper",
+    `preflight codesign="${probeCommand("codesign", ["-dv", "--verbose=4", helperPath])}"`,
+    "MUSICVIS_DEBUG_AUDIO"
+  );
+  debugLog("audio-helper", `preflight xattr="${probeCommand("xattr", ["-l", helperPath])}"`, "MUSICVIS_DEBUG_AUDIO");
 }
 
 export class AudioHelperManager {
@@ -87,29 +92,29 @@ export class AudioHelperManager {
 
   start(): void {
     if (this.restartTimer) {
-      debugLog("audio-helper", "start skip reason=restart-pending");
+      debugLog("audio-helper", "start skip reason=restart-pending", "MUSICVIS_DEBUG_AUDIO");
       return;
     }
     if (this.shouldRun && this.child) {
-      debugLog("audio-helper", `start skip reason=already-running pid=${this.child.pid ?? "unknown"}`);
+      debugLog("audio-helper", `start skip reason=already-running pid=${this.child.pid ?? "unknown"}`, "MUSICVIS_DEBUG_AUDIO");
       return;
     }
-    debugLog("audio-helper", "start requested");
+    debugLog("audio-helper", "start requested", "MUSICVIS_DEBUG_AUDIO");
     this.shouldRun = true;
     this.spawnHelper();
   }
 
   restart(): void {
     if (this.restartTimer) {
-      debugLog("audio-helper", "restart skip reason=restart-pending");
+      debugLog("audio-helper", "restart skip reason=restart-pending", "MUSICVIS_DEBUG_AUDIO");
       return;
     }
-    debugLog("audio-helper", "restart requested");
+    debugLog("audio-helper", "restart requested", "MUSICVIS_DEBUG_AUDIO");
     this.stop();
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
       this.shouldRun = true;
-      debugLog("audio-helper", "restart spawning");
+      debugLog("audio-helper", "restart spawning", "MUSICVIS_DEBUG_AUDIO");
       this.spawnHelper();
     }, 250);
   }
@@ -117,7 +122,8 @@ export class AudioHelperManager {
   stop(): void {
     debugLog(
       "audio-helper",
-      `stop requested hasChild=${Boolean(this.child)} hasReconnect=${Boolean(this.reconnectTimer)} hasRestart=${Boolean(this.restartTimer)}`
+      `stop requested hasChild=${Boolean(this.child)} hasReconnect=${Boolean(this.reconnectTimer)} hasRestart=${Boolean(this.restartTimer)}`,
+      "MUSICVIS_DEBUG_AUDIO"
     );
     this.shouldRun = false;
     if (this.reconnectTimer) {
@@ -134,7 +140,7 @@ export class AudioHelperManager {
 
   private spawnHelper(): void {
     const helperPath = resolveHelperPath();
-    debugLog("audio-helper", `spawn resolve path="${helperPath}" packaged=${app.isPackaged}`);
+    debugLog("audio-helper", `spawn resolve path="${helperPath}" packaged=${app.isPackaged}`, "MUSICVIS_DEBUG_AUDIO");
     if (!fs.existsSync(helperPath)) {
       this.onEvent({ type: "error", message: "Audio helper not found" });
       log("error", `Audio helper missing at ${helperPath}`);
@@ -146,7 +152,7 @@ export class AudioHelperManager {
       stdio: ["ignore", "pipe", "pipe"]
     });
     this.child = child;
-    debugLog("audio-helper", `spawned pid=${child.pid ?? "unknown"}`);
+    debugLog("audio-helper", `spawned pid=${child.pid ?? "unknown"}`, "MUSICVIS_DEBUG_AUDIO");
 
     let buffered = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -156,7 +162,8 @@ export class AudioHelperManager {
       buffered = lines.pop() ?? "";
       debugLog(
         "audio-helper",
-        `stdout chunk pid=${child.pid ?? "unknown"} current=${isCurrent} bytes=${chunk.length} lines=${lines.length} buffered=${buffered.length}`
+        `stdout chunk pid=${child.pid ?? "unknown"} current=${isCurrent} bytes=${chunk.length} lines=${lines.length} buffered=${buffered.length}`,
+        "MUSICVIS_DEBUG_AUDIO"
       );
       if (!isCurrent) {
         return;
@@ -170,7 +177,7 @@ export class AudioHelperManager {
           this.debugHelperEvent(parsed);
           this.onEvent(parsed);
         } else {
-          debugLog("audio-helper", `stdout malformed line="${line.slice(0, 500)}"`);
+          debugLog("audio-helper", `stdout malformed line="${line.slice(0, 500)}"`, "MUSICVIS_DEBUG_AUDIO");
           log("warn", `Malformed helper JSON: ${line}`);
         }
       }
@@ -186,7 +193,11 @@ export class AudioHelperManager {
 
     child.on("error", (error) => {
       const isCurrent = this.child === child;
-      debugLog("audio-helper", `process error pid=${child.pid ?? "unknown"} current=${isCurrent} error="${String(error)}"`);
+      debugLog(
+        "audio-helper",
+        `process error pid=${child.pid ?? "unknown"} current=${isCurrent} error="${String(error)}"`,
+        "MUSICVIS_DEBUG_AUDIO"
+      );
       if (!isCurrent) {
         return;
       }
@@ -197,7 +208,8 @@ export class AudioHelperManager {
       const isCurrent = this.child === child;
       debugLog(
         "audio-helper",
-        `close pid=${child.pid ?? "unknown"} current=${isCurrent} code=${code ?? "null"} signal=${signal ?? "null"} shouldRun=${this.shouldRun}`
+        `close pid=${child.pid ?? "unknown"} current=${isCurrent} code=${code ?? "null"} signal=${signal ?? "null"} shouldRun=${this.shouldRun}`,
+        "MUSICVIS_DEBUG_AUDIO"
       );
       if (!isCurrent) {
         return;
@@ -221,13 +233,13 @@ export class AudioHelperManager {
         return;
       }
       this.lastAudioDebugAt = now;
-      debugLog("audio-helper", `event audio samples=${event.samples.length} timestamp=${event.timestamp}`);
+      debugLog("audio-helper", `event audio samples=${event.samples.length} timestamp=${event.timestamp}`, "MUSICVIS_DEBUG_AUDIO");
       return;
     }
     if (event.type === "status") {
-      debugLog("audio-helper", `event status=${event.status}`);
+      debugLog("audio-helper", `event status=${event.status}`, "MUSICVIS_DEBUG_AUDIO");
       return;
     }
-    debugLog("audio-helper", `event error="${event.message}"`);
+    debugLog("audio-helper", `event error="${event.message}"`, "MUSICVIS_DEBUG_AUDIO");
   }
 }

@@ -67,6 +67,12 @@ Musixmatch на бесплатных/ограниченных планах мо�
 MUSICVIS_DEBUG=1 npm run dev
 ```
 
+Для шумной диагностики аудио-хелпера и IPC-моста:
+
+```bash
+MUSICVIS_DEBUG_AUDIO=1 npm run dev
+```
+
 Для компактного лога только текущих строк lyrics:
 
 ```bash

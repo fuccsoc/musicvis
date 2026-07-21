@@ -72,14 +72,16 @@ export function emitHelperEvent(mainWindow: BrowserWindow, event: HelperEvent): 
       lastAudioIpcDebugAt = now;
       debugLog(
         "audio-helper",
-        `ipc send channel=${IPC_CHANNELS.AUDIO_SAMPLES} samples=${event.samples.length} loading=${mainWindow.webContents.isLoading()}`
+        `ipc send channel=${IPC_CHANNELS.AUDIO_SAMPLES} samples=${event.samples.length} loading=${mainWindow.webContents.isLoading()}`,
+        "MUSICVIS_DEBUG_AUDIO"
       );
     }
     mainWindow.webContents.send(IPC_CHANNELS.AUDIO_SAMPLES, event);
   } else {
     debugLog(
       "audio-helper",
-      `ipc send channel=${IPC_CHANNELS.AUDIO_STATUS} type=${event.type} loading=${mainWindow.webContents.isLoading()}`
+      `ipc send channel=${IPC_CHANNELS.AUDIO_STATUS} type=${event.type} loading=${mainWindow.webContents.isLoading()}`,
+      "MUSICVIS_DEBUG_AUDIO"
     );
     mainWindow.webContents.send(IPC_CHANNELS.AUDIO_STATUS, event);
   }
