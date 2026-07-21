@@ -110,4 +110,4 @@ The CI workflow runs type checks and tests on macOS. It can also build unsigned 
 
 ## License
 
-MIT
+WTFPL
