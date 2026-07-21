@@ -90,7 +90,7 @@ export function calculateSpectrumBuckets(samples: number[], bucketCount: number,
     return [];
   }
 
-  const fftSize = Math.max(64, Math.min(1024, nextPowerOfTwo(samples.length)));
+  const fftSize = Math.max(64, Math.min(4096, nextPowerOfTwo(samples.length)));
   const real = new Array<number>(fftSize).fill(0);
   const imag = new Array<number>(fftSize).fill(0);
   for (let index = 0; index < Math.min(samples.length, fftSize); index += 1) {

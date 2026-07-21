@@ -7,6 +7,7 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
     private var stream: SCStream?
     private var lastEmit: CFAbsoluteTime = 0
     private let queue = DispatchQueue(label: "musicvis.audio-capture")
+    private let maxEmittedSamples = 2048
 
     var onMessage: (([String: Any]) -> Void)?
 
@@ -65,9 +66,9 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
         let sampleCount = Int(dataLength) / MemoryLayout<Float>.size / Int(streamBasicDescription.pointee.mChannelsPerFrame)
         let bufferPointer = UnsafeBufferPointer(start: UnsafeRawPointer(dataPointer).assumingMemoryBound(to: Float.self), count: sampleCount)
         var monoSamples = [Float]()
-        monoSamples.reserveCapacity(min(sampleCount, 512))
+        monoSamples.reserveCapacity(min(sampleCount, maxEmittedSamples))
 
-        let sampleStride = max(1, sampleCount / 512)
+        let sampleStride = max(1, (sampleCount + maxEmittedSamples - 1) / maxEmittedSamples)
         for index in stride(from: 0, to: sampleCount, by: sampleStride) {
             monoSamples.append(max(-1, min(1, bufferPointer[index])))
         }

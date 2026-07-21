@@ -42,6 +42,14 @@ describe("waveform math", () => {
     expect(spectrum).toHaveLength(384);
   });
 
+  it("uses longer sample windows for low-frequency detail", () => {
+    const tone = Array.from({ length: 4096 }, (_value, index) => Math.sin((2 * Math.PI * index * 8) / 4096));
+    const spectrum = calculateSpectrumBuckets(tone, 384);
+
+    expect(spectrum).toHaveLength(384);
+    expect(Math.max(...spectrum.slice(0, 32))).toBeGreaterThan(0);
+  });
+
   it("can attenuate low frequency buckets", () => {
     const tone = Array.from({ length: 512 }, (_value, index) => Math.sin((2 * Math.PI * index * 4) / 512));
     const fullBass = calculateSpectrumBuckets(tone, 48, 1);
