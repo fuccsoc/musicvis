@@ -4,7 +4,7 @@ import CoreMedia
 import CoreGraphics
 
 @available(macOS 13.0, *)
-final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
+final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput, @unchecked Sendable {
     private var stream: SCStream?
     private var streamStopError: Error?
     private var lastEmit: CFAbsoluteTime = 0
