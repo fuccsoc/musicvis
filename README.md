@@ -1,35 +1,38 @@
 # musicvis
 
-Минималистичный macOS-визуализатор для системного Now Playing на Electron + React + TypeScript + Swift (ScreenCaptureKit).
+[![CI](https://github.com/fuccsoc/musicvis/actions/workflows/ci.yml/badge.svg)](https://github.com/fuccsoc/musicvis/actions/workflows/ci.yml)
 
-![Screenshot placeholder](https://via.placeholder.com/1280x720/111111/FFFFFF?text=musicvis+placeholder)
+Minimal macOS Now Playing visualizer built with Electron, React, TypeScript, and Swift.
 
-## Требования
+musicvis renders a full-window waveform from system audio, uses macOS Now Playing metadata for track info and artwork, and can show one synced lyric line above the visualizer.
 
-- macOS 13 Ventura+
-- Node.js 20+
-- npm 10+
-- Xcode Command Line Tools (`xcode-select --install`)
-- Любой плеер, который публикует Now Playing metadata в macOS MediaRemote
+## Features
 
-## Установка
+- System audio waveform powered by ScreenCaptureKit.
+- Now Playing metadata, playback position, and artwork via MediaRemote.
+- Synced lyrics via LRCLIB, with optional Musixmatch support.
+- Fullscreen-friendly UI with idle cursor hiding.
+- Configurable waveform colors, glow, smoothing, autoscale, and text display.
+- Native helper reload button for recovering from macOS audio capture stalls.
 
-```bash
-npm install
-```
+## Requirements
+
+- macOS 13 Ventura or newer.
+- Node.js 20 or newer.
+- npm 10 or newer.
+- Xcode Command Line Tools (`xcode-select --install`).
+- A player that publishes macOS Now Playing metadata.
 
 ## Development
 
 ```bash
+npm install
 npm run dev
 ```
 
-Запускаются:
-- Vite dev server
-- Electron app
-- build-native (на macOS)
+`npm run dev` starts the Vite renderer, builds the Swift native helpers, and opens Electron.
 
-## Сборка
+## Build
 
 ```bash
 npm run build
@@ -37,63 +40,74 @@ npm run build:native
 npm run build:mac
 ```
 
-`electron-builder` включает `resources/native/AudioCaptureHelper` через `extraResources`.
+`build:native` creates:
 
-`build:native` также собирает `MediaRemoteHelper` на базе Swift package
-`ejbills/mediaremote-adapter`. Он является единственным источником metadata,
-position и artwork; lyrics ищутся отдельно по artist/title/album.
+- `resources/native/AudioCaptureHelper`
+- `resources/native/MediaRemoteHelper`
+- `resources/native/libMediaRemoteAdapter.dylib`, when produced by the Swift package
 
-## Разрешения macOS
+The native outputs are generated artifacts and are intentionally ignored by git.
 
-Приложение использует:
+`build:mac` packages unsigned `dmg` and `zip` artifacts through electron-builder. For public distribution you will still need your own signing and notarization setup.
 
-1. **Screen Recording Permission** (системное аудио для waveform)
-   - System Settings → Privacy & Security → Screen Recording
+## macOS Permissions
 
-Без Screen Recording metadata продолжают работать, но waveform будет отключён.
+The waveform requires Screen Recording permission:
 
-## Lyrics providers (опционально)
+System Settings -> Privacy & Security -> Screen Recording
 
-Синхронизированные строки lyrics ищутся через:
+Without this permission, metadata and artwork can still work, but the waveform will not receive system audio samples.
 
-- `MUSIXMATCH_API_KEY` — официальный Musixmatch API, если ключ задан.
-- LRCLIB — fallback без ключа.
+## Lyrics
 
-Musixmatch на бесплатных/ограниченных планах может не отдавать full synced lyrics.
+Synced lyrics are resolved from:
 
-Для полной диагностики metadata/artwork/lyrics/poll:
+- `MUSIXMATCH_API_KEY`, when set.
+- LRCLIB as the no-key fallback.
+
+Some Musixmatch plans do not return full synced lyrics.
+
+## Debugging
+
+General metadata/artwork/lyrics/poll logs:
 
 ```bash
 MUSICVIS_DEBUG=1 npm run dev
 ```
 
-Для шумной диагностики аудио-хелпера и IPC-моста:
+Verbose audio helper and IPC bridge logs:
 
 ```bash
 MUSICVIS_DEBUG_AUDIO=1 npm run dev
 ```
 
-Для компактного лога только текущих строк lyrics:
+Only the currently displayed lyric line:
 
 ```bash
 MUSICVIS_DEBUG_LYRICS=1 npm run dev
 ```
 
-## Сброс настроек
+## Settings
 
-Настройки: `~/Library/Application Support/<app>/settings.json`
+Settings are stored at:
 
-Удалите файл `settings.json`, чтобы восстановить значения по умолчанию.
+```text
+~/Library/Application Support/musicvis/settings.json
+```
 
-## Ограничения
+Delete this file to restore defaults.
 
-- На non-macOS `build-native` пропускается.
-- Для waveform требуется системное разрешение Screen Recording.
-- Если ни один плеер не публикует Now Playing metadata, приложение показывает idle-состояние.
+## GitHub Actions
+
+The CI workflow runs type checks and tests on macOS. It can also build unsigned macOS artifacts and upload them from the `release/` directory.
 
 ## Troubleshooting
 
-- Проверьте, что плеер воспроизводит трек и виден в системном Now Playing.
-- Повторно выдайте Screen Recording permission.
-- Если helper не стартует, пересоберите: `npm run build:native`.
-- Если JSON настроек повреждён, удалите `settings.json`.
+- Make sure your player is actively publishing Now Playing metadata.
+- Re-grant Screen Recording permission after rebuilding or moving the app.
+- Reboot macOS if ScreenCaptureKit keeps returning `application connection being interrupted` after permission or code-signing changes.
+- Rebuild native helpers with `npm run build:native` if helper binaries are missing.
+
+## License
+
+MIT

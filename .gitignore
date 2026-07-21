@@ -1,8 +1,11 @@
 node_modules
 dist
 release
+resources/native
 .DS_Store
 *.log
+.env
+.env.*
 coverage
 native/AudioCaptureHelper/.build
 native/MediaRemoteHelper/.build

@@ -1,7 +1,7 @@
 {
   "name": "musicvis",
   "version": "0.1.0",
-  "description": "Music visualizer for macOS Now Playing",
+  "description": "Minimal macOS Now Playing visualizer with system audio waveform, artwork, and synced lyrics",
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "concurrently -k \"npm run dev:renderer\" \"npm run dev:electron\"",
@@ -17,13 +17,25 @@
     "test": "vitest run"
   },
   "keywords": [
+    "macos",
     "electron",
+    "react",
     "music",
     "visualizer",
-    "apple-music"
+    "now-playing",
+    "screen-capturekit",
+    "lyrics"
   ],
-  "author": "",
+  "author": "fuccsoc",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuccsoc/musicvis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fuccsoc/musicvis/issues"
+  },
+  "homepage": "https://github.com/fuccsoc/musicvis#readme",
   "type": "commonjs",
   "dependencies": {
     "react": "^19.2.0",
