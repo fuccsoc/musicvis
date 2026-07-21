@@ -14,6 +14,7 @@ const IPC_CHANNELS = {
   TOGGLE_FULLSCREEN: "visualizer:toggleFullscreen",
   TOGGLE_ALWAYS_ON_TOP: "visualizer:toggleAlwaysOnTop",
   TOGGLE_CLICK_THROUGH: "visualizer:toggleClickThrough",
+  RESTART_AUDIO_HELPER: "visualizer:restartAudioHelper",
   OPEN_SYSTEM_PREFERENCES: "visualizer:openSystemPreferences"
 } as const;
 
@@ -41,6 +42,7 @@ const api = {
   toggleFullscreen: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TOGGLE_FULLSCREEN),
   toggleAlwaysOnTop: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TOGGLE_ALWAYS_ON_TOP),
   toggleClickThrough: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TOGGLE_CLICK_THROUGH),
+  restartAudioHelper: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.RESTART_AUDIO_HELPER),
   openSystemPreferences: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.OPEN_SYSTEM_PREFERENCES)
 };
 

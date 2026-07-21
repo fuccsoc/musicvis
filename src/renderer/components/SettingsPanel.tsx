@@ -256,6 +256,9 @@ export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
       <button type="button" onClick={() => void window.visualizerApi.toggleClickThrough()}>
         Toggle Click-through
       </button>
+      <button type="button" onClick={() => void window.visualizerApi.restartAudioHelper()}>
+        Reload Audio
+      </button>
       <button type="button" onClick={() => void window.visualizerApi.openSystemPreferences()}>
         Open Screen Recording Settings
       </button>

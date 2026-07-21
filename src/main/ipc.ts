@@ -13,12 +13,14 @@ export const IPC_CHANNELS = {
   TOGGLE_FULLSCREEN: "visualizer:toggleFullscreen",
   TOGGLE_ALWAYS_ON_TOP: "visualizer:toggleAlwaysOnTop",
   TOGGLE_CLICK_THROUGH: "visualizer:toggleClickThrough",
+  RESTART_AUDIO_HELPER: "visualizer:restartAudioHelper",
   OPEN_SYSTEM_PREFERENCES: "visualizer:openSystemPreferences"
 } as const;
 
 export function setupIpc(mainWindow: BrowserWindow, actions: {
   getCurrentTrack: () => Promise<TrackInfo | null>;
   applySettings: (settings: AppSettings, patch?: Partial<AppSettings>) => void;
+  restartAudioHelper: () => void;
 }): void {
   ipcMain.handle(IPC_CHANNELS.GET_CURRENT_TRACK, async () => actions.getCurrentTrack());
   ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, async () => getSettings());
@@ -45,6 +47,10 @@ export function setupIpc(mainWindow: BrowserWindow, actions: {
     const next = !meta.__clickThrough;
     const settings = updateSettings({ clickThrough: next });
     actions.applySettings(settings, { clickThrough: next });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.RESTART_AUDIO_HELPER, () => {
+    actions.restartAudioHelper();
   });
 
   ipcMain.handle(IPC_CHANNELS.OPEN_SYSTEM_PREFERENCES, async () => {

@@ -95,7 +95,10 @@ app.whenReady().then(() => {
 
   setupIpc(window, {
     getCurrentTrack,
-    applySettings: (settings, patch) => applySettings(window, settings, patch)
+    applySettings: (settings, patch) => applySettings(window, settings, patch),
+    restartAudioHelper: () => {
+      helper?.restart();
+    }
   });
 
   window.webContents.on("before-input-event", (_event, input) => {

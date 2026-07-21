@@ -13,6 +13,7 @@ declare global {
       toggleFullscreen(): Promise<void>;
       toggleAlwaysOnTop(): Promise<void>;
       toggleClickThrough(): Promise<void>;
+      restartAudioHelper(): Promise<void>;
       openSystemPreferences(): Promise<void>;
     };
   }

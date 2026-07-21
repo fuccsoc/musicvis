@@ -49,8 +49,20 @@ export class AudioHelperManager {
   constructor(private readonly onEvent: (event: HelperEvent) => void) {}
 
   start(): void {
+    if (this.shouldRun && this.child) {
+      return;
+    }
     this.shouldRun = true;
     this.spawnHelper();
+  }
+
+  restart(): void {
+    this.stop();
+    this.shouldRun = true;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.spawnHelper();
+    }, 250);
   }
 
   stop(): void {
