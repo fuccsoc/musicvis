@@ -80,7 +80,8 @@
           "AudioCaptureHelper",
           "MediaRemoteHelper",
           "libMediaRemoteAdapter.dylib",
-          "MediaRemoteAdapter.framework/**"
+          "MediaRemoteAdapter.framework/**",
+          "MediaRemoteAdapter_*.bundle/**"
         ]
       }
     ],

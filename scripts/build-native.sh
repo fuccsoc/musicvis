@@ -31,6 +31,16 @@ prepare_native_code() {
   fi
 }
 
+copy_media_remote_bundles() {
+  find "$MEDIA_REMOTE_DIR/.build" -name 'MediaRemoteAdapter_*.bundle' -type d -print0 | while IFS= read -r -d '' bundle; do
+    local bundle_name
+    bundle_name="$(basename "$bundle")"
+    rm -rf "$OUTPUT_DIR/$bundle_name"
+    cp -R "$bundle" "$OUTPUT_DIR/$bundle_name"
+    echo "Copied resource bundle: $OUTPUT_DIR/$bundle_name"
+  done
+}
+
 cd "$NATIVE_DIR"
 swift build -c release
 
@@ -62,5 +72,7 @@ if [[ -n "$MEDIA_REMOTE_FRAMEWORK" ]]; then
   cp -R "$MEDIA_REMOTE_FRAMEWORK" "$OUTPUT_DIR/MediaRemoteAdapter.framework"
   prepare_native_code "$OUTPUT_DIR/MediaRemoteAdapter.framework"
 fi
+
+copy_media_remote_bundles
 
 echo "Built helper: $MEDIA_REMOTE_BIN"

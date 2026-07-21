@@ -21,9 +21,15 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput, @un
         let hasScreenCaptureAccess = CGPreflightScreenCaptureAccess()
         debugLog("screen capture access preflight allowed=\(hasScreenCaptureAccess)")
         guard hasScreenCaptureAccess else {
-            debugLog("start failed reason=screen-capture-permission")
-            onMessage?(["type": "status", "status": "permission-denied"])
-            onMessage?(["type": "error", "message": "Screen Recording permission is not granted for AudioCaptureHelper"])
+            let didRequestAccess = CGRequestScreenCaptureAccess()
+            debugLog("screen capture access request result=\(didRequestAccess)")
+            guard didRequestAccess else {
+                debugLog("start failed reason=screen-capture-permission")
+                onMessage?(["type": "status", "status": "permission-denied"])
+                onMessage?(["type": "error", "message": "Screen Recording permission is not granted for AudioCaptureHelper"])
+                return
+            }
+            onMessage?(["type": "error", "message": "Screen Recording permission was granted. Restart musicvis to start waveform capture."])
             return
         }
 

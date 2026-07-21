@@ -25,6 +25,16 @@ prepare_native_code() {
   fi
 }
 
+copy_media_remote_bundles() {
+  find "$ROOT/native/MediaRemoteHelper/.build" -name 'MediaRemoteAdapter_*.bundle' -type d -print0 | while IFS= read -r -d '' bundle; do
+    local bundle_name
+    bundle_name="$(basename "$bundle")"
+    rm -rf "$ROOT/resources/native/$bundle_name"
+    cp -R "$bundle" "$ROOT/resources/native/$bundle_name"
+    echo "Copied resource bundle: $ROOT/resources/native/$bundle_name"
+  done
+}
+
 mkdir -p "$(dirname "$DST")"
 cp "$SRC" "$DST"
 chmod +x "$DST"
@@ -45,3 +55,5 @@ if [[ -n "$MEDIA_REMOTE_FRAMEWORK" ]]; then
   cp -R "$MEDIA_REMOTE_FRAMEWORK" "$ROOT/resources/native/MediaRemoteAdapter.framework"
   prepare_native_code "$ROOT/resources/native/MediaRemoteAdapter.framework"
 fi
+
+copy_media_remote_bundles
