@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, shell } from "electron";
 import type { AppSettings, HelperEvent, TrackInfo } from "./types";
 import { getSettings, updateSettings } from "./settings";
+import { debugLog } from "./logger";
 
 export const IPC_CHANNELS = {
   GET_CURRENT_TRACK: "visualizer:getCurrentTrack",
@@ -62,10 +63,24 @@ export function emitTrackChanged(mainWindow: BrowserWindow, track: TrackInfo | n
   mainWindow.webContents.send(IPC_CHANNELS.TRACK_CHANGED, track);
 }
 
+let lastAudioIpcDebugAt = 0;
+
 export function emitHelperEvent(mainWindow: BrowserWindow, event: HelperEvent): void {
   if (event.type === "audio") {
+    const now = Date.now();
+    if (now - lastAudioIpcDebugAt >= 2000) {
+      lastAudioIpcDebugAt = now;
+      debugLog(
+        "audio-helper",
+        `ipc send channel=${IPC_CHANNELS.AUDIO_SAMPLES} samples=${event.samples.length} loading=${mainWindow.webContents.isLoading()}`
+      );
+    }
     mainWindow.webContents.send(IPC_CHANNELS.AUDIO_SAMPLES, event);
   } else {
+    debugLog(
+      "audio-helper",
+      `ipc send channel=${IPC_CHANNELS.AUDIO_STATUS} type=${event.type} loading=${mainWindow.webContents.isLoading()}`
+    );
     mainWindow.webContents.send(IPC_CHANNELS.AUDIO_STATUS, event);
   }
 }

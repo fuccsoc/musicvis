@@ -3,10 +3,11 @@ import ScreenCaptureKit
 import CoreMedia
 
 @available(macOS 13.0, *)
-final class AudioCaptureService: NSObject, SCStreamOutput {
+final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     private var stream: SCStream?
     private var lastEmit: CFAbsoluteTime = 0
     private var lastDebugEmit: CFAbsoluteTime = 0
+    private var captureStartCompleted = false
     private let queue = DispatchQueue(label: "musicvis.audio-capture")
     private let maxEmittedSamples = 2048
 
@@ -31,13 +32,27 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
             configuration.sampleRate = 44_100
             configuration.channelCount = 1
 
-            let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
+            debugLog("stream create requested capturesAudio=\(configuration.capturesAudio) sampleRate=\(configuration.sampleRate) channels=\(configuration.channelCount)")
+            let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
             self.stream = stream
+            debugLog("stream output add requested")
             try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+            debugLog("stream output added")
+            captureStartCompleted = false
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5.0) { [weak self] in
+                guard let self, !self.captureStartCompleted else {
+                    return
+                }
+                self.debugLog("capture start watchdog timeout")
+                self.onMessage?(["type": "error", "message": "Audio capture start timed out"])
+            }
+            debugLog("capture start requested")
             try await stream.startCapture()
+            captureStartCompleted = true
             debugLog("capture started")
             onMessage?(["type": "status", "status": "started"])
         } catch {
+            captureStartCompleted = true
             debugLog("start failed error=\"\(error.localizedDescription)\"")
             onMessage?(["type": "status", "status": "permission-denied"])
             onMessage?(["type": "error", "message": error.localizedDescription])
@@ -51,6 +66,11 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
             debugLog("capture stopped")
             onMessage?(["type": "status", "status": "stopped"])
         }
+    }
+
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        debugLog("stream stopped error=\"\(error.localizedDescription)\"")
+        onMessage?(["type": "error", "message": error.localizedDescription])
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {

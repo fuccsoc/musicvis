@@ -64,6 +64,7 @@ interface LyricsCacheEntry {
 }
 
 const lyricsCache = new Map<string, LyricsCacheEntry>();
+const lyricsInFlight = new Map<string, Promise<TimedLyricLine[] | null>>();
 const loggedKeys = new Set<string>();
 const debugLyrics = process.env.MUSICVIS_DEBUG === "1";
 const lyricLineOnlyDebug = process.env.MUSICVIS_DEBUG_LYRICS === "1" && process.env.MUSICVIS_DEBUG !== "1";
@@ -432,8 +433,17 @@ export async function resolveCurrentLyrics(
   const key = cacheKey(query);
   const cached = lyricsCache.get(key);
   if (!cached || (!cached.lines && Date.now() - cached.timestamp > missTtlMs)) {
-    debugLog("lyrics", cached ? `cache retry key="${key}"` : `cache miss key="${key}"`);
-    const lines = await fetchLyrics(query);
+    let linesPromise = lyricsInFlight.get(key);
+    if (!linesPromise) {
+      debugLog("lyrics", cached ? `cache retry key="${key}"` : `cache miss key="${key}"`);
+      linesPromise = fetchLyrics(query).finally(() => {
+        lyricsInFlight.delete(key);
+      });
+      lyricsInFlight.set(key, linesPromise);
+    } else {
+      debugLog("lyrics", `cache join-inflight key="${key}"`);
+    }
+    const lines = await linesPromise;
     lyricsCache.set(key, {
       lines,
       timestamp: Date.now()

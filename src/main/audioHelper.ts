@@ -86,6 +86,10 @@ export class AudioHelperManager {
   constructor(private readonly onEvent: (event: HelperEvent) => void) {}
 
   start(): void {
+    if (this.restartTimer) {
+      debugLog("audio-helper", "start skip reason=restart-pending");
+      return;
+    }
     if (this.shouldRun && this.child) {
       debugLog("audio-helper", `start skip reason=already-running pid=${this.child.pid ?? "unknown"}`);
       return;
@@ -146,9 +150,17 @@ export class AudioHelperManager {
 
     let buffered = "";
     child.stdout.on("data", (chunk: Buffer) => {
+      const isCurrent = this.child === child;
       buffered += chunk.toString("utf8");
       const lines = buffered.split("\n");
       buffered = lines.pop() ?? "";
+      debugLog(
+        "audio-helper",
+        `stdout chunk pid=${child.pid ?? "unknown"} current=${isCurrent} bytes=${chunk.length} lines=${lines.length} buffered=${buffered.length}`
+      );
+      if (!isCurrent) {
+        return;
+      }
       for (const line of lines) {
         if (!line.trim()) {
           continue;
@@ -158,25 +170,38 @@ export class AudioHelperManager {
           this.debugHelperEvent(parsed);
           this.onEvent(parsed);
         } else {
+          debugLog("audio-helper", `stdout malformed line="${line.slice(0, 500)}"`);
           log("warn", `Malformed helper JSON: ${line}`);
         }
       }
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
+      const isCurrent = this.child === child;
       const message = chunk.toString("utf8").trim();
       if (message) {
-        log("warn", `[AudioHelper] ${message}`);
+        log("warn", `[AudioHelper${isCurrent ? "" : " stale"}] ${message}`);
       }
     });
 
     child.on("error", (error) => {
-      debugLog("audio-helper", `process error="${String(error)}"`);
+      const isCurrent = this.child === child;
+      debugLog("audio-helper", `process error pid=${child.pid ?? "unknown"} current=${isCurrent} error="${String(error)}"`);
+      if (!isCurrent) {
+        return;
+      }
       this.onEvent({ type: "error", message: `Audio helper failed to start: ${String(error)}` });
     });
 
     child.on("close", (code, signal) => {
-      debugLog("audio-helper", `close code=${code ?? "null"} signal=${signal ?? "null"} shouldRun=${this.shouldRun}`);
+      const isCurrent = this.child === child;
+      debugLog(
+        "audio-helper",
+        `close pid=${child.pid ?? "unknown"} current=${isCurrent} code=${code ?? "null"} signal=${signal ?? "null"} shouldRun=${this.shouldRun}`
+      );
+      if (!isCurrent) {
+        return;
+      }
       this.child = null;
       if (!this.shouldRun) {
         return;
