@@ -1,10 +1,12 @@
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
+import CoreGraphics
 
 @available(macOS 13.0, *)
 final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     private var stream: SCStream?
+    private var streamStopError: Error?
     private var lastEmit: CFAbsoluteTime = 0
     private var lastDebugEmit: CFAbsoluteTime = 0
     private var captureStartCompleted = false
@@ -15,6 +17,16 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
 
     func start() async {
         debugLog("start requested")
+        debugLog("process executable=\"\(Bundle.main.executablePath ?? "unknown")\" bundleIdentifier=\"\(Bundle.main.bundleIdentifier ?? "none")\"")
+        let hasScreenCaptureAccess = CGPreflightScreenCaptureAccess()
+        debugLog("screen capture access preflight allowed=\(hasScreenCaptureAccess)")
+        guard hasScreenCaptureAccess else {
+            debugLog("start failed reason=screen-capture-permission")
+            onMessage?(["type": "status", "status": "permission-denied"])
+            onMessage?(["type": "error", "message": "Screen Recording permission is not granted for AudioCaptureHelper"])
+            return
+        }
+
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first else {
@@ -35,7 +47,11 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
             configuration.channelCount = 1
 
             debugLog("stream create requested capturesAudio=\(configuration.capturesAudio) width=\(configuration.width) height=\(configuration.height) sampleRate=\(configuration.sampleRate) channels=\(configuration.channelCount)")
+            streamStopError = nil
             let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
+            if let streamStopError {
+                throw streamStopError
+            }
             self.stream = stream
             debugLog("stream output add requested type=screen")
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
@@ -74,6 +90,7 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
+        streamStopError = error
         debugLog("stream stopped error=\"\(error.localizedDescription)\"")
         onMessage?(["type": "error", "message": error.localizedDescription])
     }
