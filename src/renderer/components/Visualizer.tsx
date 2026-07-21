@@ -7,8 +7,11 @@ interface Props {
 }
 
 export function Visualizer({ settings, getSamples }: Props) {
+  const verticalPadding = settings.waveformGlow + settings.lineWidth + 8;
+  const height = settings.waveformHeight * 2 + verticalPadding * 2;
+
   return (
-    <div className="visualizer" style={{ width: `${settings.waveformWidthPercent}%` }}>
+    <div className="visualizer" style={{ width: `${settings.waveformWidthPercent}%`, height }}>
       <WaveformCanvas getSamples={getSamples} settings={settings} />
     </div>
   );

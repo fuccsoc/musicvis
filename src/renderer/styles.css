@@ -65,7 +65,6 @@ body,
 
 .visualizer {
   max-width: 90vw;
-  height: min(36vh, 320px);
 }
 
 .waveform-canvas {
