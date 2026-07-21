@@ -26,18 +26,23 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
 
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             let configuration = SCStreamConfiguration()
+            configuration.width = display.width
+            configuration.height = display.height
             configuration.capturesAudio = true
             configuration.excludesCurrentProcessAudio = true
             configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
             configuration.sampleRate = 44_100
             configuration.channelCount = 1
 
-            debugLog("stream create requested capturesAudio=\(configuration.capturesAudio) sampleRate=\(configuration.sampleRate) channels=\(configuration.channelCount)")
+            debugLog("stream create requested capturesAudio=\(configuration.capturesAudio) width=\(configuration.width) height=\(configuration.height) sampleRate=\(configuration.sampleRate) channels=\(configuration.channelCount)")
             let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
             self.stream = stream
-            debugLog("stream output add requested")
+            debugLog("stream output add requested type=screen")
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+            debugLog("stream output added type=screen")
+            debugLog("stream output add requested type=audio")
             try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
-            debugLog("stream output added")
+            debugLog("stream output added type=audio")
             captureStartCompleted = false
             DispatchQueue.global().asyncAfter(deadline: .now() + 5.0) { [weak self] in
                 guard let self, !self.captureStartCompleted else {
@@ -74,8 +79,11 @@ final class AudioCaptureService: NSObject, SCStreamDelegate, SCStreamOutput {
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
-        guard outputType == .audio,
-              let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
+        guard outputType == .audio else {
+            return
+        }
+
+        guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
               let streamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription) else {
             debugLog("sample skipped reason=missing-format")
             return
