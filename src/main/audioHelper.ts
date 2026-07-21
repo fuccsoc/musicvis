@@ -4,7 +4,7 @@ import { ChildProcessByStdio, spawn } from "node:child_process";
 import { Readable } from "node:stream";
 import { app } from "electron";
 import type { HelperEvent } from "./types";
-import { log } from "./logger";
+import { debugLog, log } from "./logger";
 
 export function parseHelperJsonLine(line: string): HelperEvent | null {
   try {
@@ -46,26 +46,33 @@ export class AudioHelperManager {
 
   private shouldRun = false;
 
+  private lastAudioDebugAt = 0;
+
   constructor(private readonly onEvent: (event: HelperEvent) => void) {}
 
   start(): void {
     if (this.shouldRun && this.child) {
+      debugLog("audio-helper", `start skip reason=already-running pid=${this.child.pid ?? "unknown"}`);
       return;
     }
+    debugLog("audio-helper", "start requested");
     this.shouldRun = true;
     this.spawnHelper();
   }
 
   restart(): void {
+    debugLog("audio-helper", "restart requested");
     this.stop();
-    this.shouldRun = true;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
+      this.shouldRun = true;
+      debugLog("audio-helper", "restart spawning");
       this.spawnHelper();
     }, 250);
   }
 
   stop(): void {
+    debugLog("audio-helper", `stop requested hasChild=${Boolean(this.child)} hasReconnect=${Boolean(this.reconnectTimer)}`);
     this.shouldRun = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -77,6 +84,7 @@ export class AudioHelperManager {
 
   private spawnHelper(): void {
     const helperPath = resolveHelperPath();
+    debugLog("audio-helper", `spawn resolve path="${helperPath}" packaged=${app.isPackaged}`);
     if (!fs.existsSync(helperPath)) {
       this.onEvent({ type: "error", message: "Audio helper not found" });
       log("error", `Audio helper missing at ${helperPath}`);
@@ -87,6 +95,7 @@ export class AudioHelperManager {
       stdio: ["ignore", "pipe", "pipe"]
     });
     this.child = child;
+    debugLog("audio-helper", `spawned pid=${child.pid ?? "unknown"}`);
 
     let buffered = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -99,6 +108,7 @@ export class AudioHelperManager {
         }
         const parsed = parseHelperJsonLine(line);
         if (parsed) {
+          this.debugHelperEvent(parsed);
           this.onEvent(parsed);
         } else {
           log("warn", `Malformed helper JSON: ${line}`);
@@ -107,10 +117,19 @@ export class AudioHelperManager {
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
-      log("warn", `[AudioHelper] ${chunk.toString("utf8").trim()}`);
+      const message = chunk.toString("utf8").trim();
+      if (message) {
+        log("warn", `[AudioHelper] ${message}`);
+      }
+    });
+
+    child.on("error", (error) => {
+      debugLog("audio-helper", `process error="${String(error)}"`);
+      this.onEvent({ type: "error", message: `Audio helper failed to start: ${String(error)}` });
     });
 
     child.on("close", (code, signal) => {
+      debugLog("audio-helper", `close code=${code ?? "null"} signal=${signal ?? "null"} shouldRun=${this.shouldRun}`);
       this.child = null;
       if (!this.shouldRun) {
         return;
@@ -121,5 +140,22 @@ export class AudioHelperManager {
       this.onEvent({ type: "error", message: `Audio helper exited unexpectedly (${code ?? "null"})` });
       this.reconnectTimer = setTimeout(() => this.spawnHelper(), 1500);
     });
+  }
+
+  private debugHelperEvent(event: HelperEvent): void {
+    if (event.type === "audio") {
+      const now = Date.now();
+      if (now - this.lastAudioDebugAt < 2000) {
+        return;
+      }
+      this.lastAudioDebugAt = now;
+      debugLog("audio-helper", `event audio samples=${event.samples.length} timestamp=${event.timestamp}`);
+      return;
+    }
+    if (event.type === "status") {
+      debugLog("audio-helper", `event status=${event.status}`);
+      return;
+    }
+    debugLog("audio-helper", `event error="${event.message}"`);
   }
 }

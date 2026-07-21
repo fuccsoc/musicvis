@@ -6,18 +6,22 @@ import CoreMedia
 final class AudioCaptureService: NSObject, SCStreamOutput {
     private var stream: SCStream?
     private var lastEmit: CFAbsoluteTime = 0
+    private var lastDebugEmit: CFAbsoluteTime = 0
     private let queue = DispatchQueue(label: "musicvis.audio-capture")
     private let maxEmittedSamples = 2048
 
     var onMessage: (([String: Any]) -> Void)?
 
     func start() async {
+        debugLog("start requested")
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let display = content.displays.first else {
+                debugLog("start failed reason=no-display")
                 onMessage?(["type": "error", "message": "No display found"])
                 return
             }
+            debugLog("display selected id=\(display.displayID)")
 
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             let configuration = SCStreamConfiguration()
@@ -31,16 +35,20 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
             self.stream = stream
             try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
             try await stream.startCapture()
+            debugLog("capture started")
             onMessage?(["type": "status", "status": "started"])
         } catch {
+            debugLog("start failed error=\"\(error.localizedDescription)\"")
             onMessage?(["type": "status", "status": "permission-denied"])
             onMessage?(["type": "error", "message": error.localizedDescription])
         }
     }
 
     func stop() {
+        debugLog("stop requested")
         Task {
             try? await stream?.stopCapture()
+            debugLog("capture stopped")
             onMessage?(["type": "status", "status": "stopped"])
         }
     }
@@ -49,10 +57,12 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
         guard outputType == .audio,
               let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
               let streamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription) else {
+            debugLog("sample skipped reason=missing-format")
             return
         }
 
         guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+            debugLog("sample skipped reason=missing-block-buffer")
             return
         }
 
@@ -60,6 +70,7 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
         var dataPointer: UnsafeMutablePointer<Int8>?
         let status = CMBlockBufferGetDataPointer(blockBuffer, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &dataLength, dataPointerOut: &dataPointer)
         guard status == noErr, let dataPointer else {
+            debugLog("sample skipped reason=data-pointer status=\(status)")
             return
         }
 
@@ -79,7 +90,20 @@ final class AudioCaptureService: NSObject, SCStreamOutput {
         }
         lastEmit = now
 
+        if now - lastDebugEmit >= 2.0 {
+            lastDebugEmit = now
+            debugLog("audio buffer sampleCount=\(sampleCount) emitted=\(monoSamples.count) stride=\(sampleStride) bytes=\(dataLength)")
+        }
+
         let payload = AudioEncoder.makeAudioPayload(samples: monoSamples, timestamp: UInt64(now * 1000))
         onMessage?(payload)
+    }
+
+    private func debugLog(_ message: String) {
+        guard ProcessInfo.processInfo.environment["MUSICVIS_DEBUG"] == "1" else {
+            return
+        }
+        fputs("[AudioCaptureHelper] \(message)\n", stderr)
+        fflush(stderr)
     }
 }
