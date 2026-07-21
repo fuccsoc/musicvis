@@ -11,7 +11,7 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "build:native": "bash scripts/build-native.sh",
-    "build:mac": "npm run build && npm run build:native && electron-builder --mac",
+    "build:mac": "npm run build && npm run build:native && electron-builder --mac --publish never",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run"
