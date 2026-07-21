@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ChildProcessByStdio, spawn } from "node:child_process";
+import { ChildProcessByStdio, spawn, spawnSync } from "node:child_process";
 import { Readable } from "node:stream";
 import { app } from "electron";
 import type { HelperEvent } from "./types";
@@ -39,10 +39,45 @@ function resolveHelperPath(): string {
   return path.join(process.resourcesPath, relativePath);
 }
 
+function probeCommand(command: string, args: string[]): string {
+  const result = spawnSync(command, args, { encoding: "utf8" });
+  if (result.error) {
+    return `error=${String(result.error)}`;
+  }
+
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim().replace(/\s+/g, " ");
+  if (output) {
+    return output.slice(0, 1200);
+  }
+
+  return `status=${result.status ?? "null"} signal=${result.signal ?? "null"}`;
+}
+
+function debugHelperPreflight(helperPath: string): void {
+  if (process.env.MUSICVIS_DEBUG !== "1") {
+    return;
+  }
+
+  try {
+    const stat = fs.statSync(helperPath);
+    debugLog(
+      "audio-helper",
+      `preflight file mode=${(stat.mode & 0o777).toString(8)} size=${stat.size} mtime=${stat.mtime.toISOString()}`
+    );
+  } catch (error) {
+    debugLog("audio-helper", `preflight stat failed error="${String(error)}"`);
+  }
+
+  debugLog("audio-helper", `preflight codesign="${probeCommand("codesign", ["-dv", "--verbose=4", helperPath])}"`);
+  debugLog("audio-helper", `preflight xattr="${probeCommand("xattr", ["-l", helperPath])}"`);
+}
+
 export class AudioHelperManager {
   private child: ChildProcessByStdio<null, Readable, Readable> | null = null;
 
   private reconnectTimer: NodeJS.Timeout | null = null;
+
+  private restartTimer: NodeJS.Timeout | null = null;
 
   private shouldRun = false;
 
@@ -61,10 +96,14 @@ export class AudioHelperManager {
   }
 
   restart(): void {
+    if (this.restartTimer) {
+      debugLog("audio-helper", "restart skip reason=restart-pending");
+      return;
+    }
     debugLog("audio-helper", "restart requested");
     this.stop();
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
       this.shouldRun = true;
       debugLog("audio-helper", "restart spawning");
       this.spawnHelper();
@@ -72,11 +111,18 @@ export class AudioHelperManager {
   }
 
   stop(): void {
-    debugLog("audio-helper", `stop requested hasChild=${Boolean(this.child)} hasReconnect=${Boolean(this.reconnectTimer)}`);
+    debugLog(
+      "audio-helper",
+      `stop requested hasChild=${Boolean(this.child)} hasReconnect=${Boolean(this.reconnectTimer)} hasRestart=${Boolean(this.restartTimer)}`
+    );
     this.shouldRun = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
     }
     this.child?.kill("SIGTERM");
     this.child = null;
@@ -90,6 +136,7 @@ export class AudioHelperManager {
       log("error", `Audio helper missing at ${helperPath}`);
       return;
     }
+    debugHelperPreflight(helperPath);
 
     const child = spawn(helperPath, [], {
       stdio: ["ignore", "pipe", "pipe"]
