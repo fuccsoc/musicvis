@@ -5,17 +5,19 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { app } from "electron";
 import type { PlaybackState, TrackInfo } from "./types";
-import { resolveCurrentLyrics } from "./lyrics";
+import { getCachedCurrentLyrics, resolveCurrentLyrics } from "./lyrics";
 import { debugLog, log } from "./logger";
 
 const execFileAsync = promisify(execFile);
 const artworkCache = new Map<string, string>();
 const debugLyrics = process.env.MUSICVIS_DEBUG_LYRICS === "1";
 const swiftHelperFailureBackoffMs = 2500;
+const lyricRefreshIntervalMs = 10_000;
 let lastPlaybackDebugAt = 0;
 let swiftHelperFailures = 0;
 let swiftHelperDisabledUntil = 0;
 let swiftHelperInFlight: Promise<ParsedMediaRemoteTrack | null> | null = null;
+const lyricRefreshStartedAt = new Map<string, number>();
 let playbackClock: {
   id: string;
   position: number;
@@ -287,6 +289,38 @@ function logCurrentLyric(line: string): void {
   log("info", `lyric="${line.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`);
 }
 
+function lyricQueryForTrack(track: ParsedMediaRemoteTrack): {
+  artist: string;
+  title: string;
+  album: string;
+  duration: number;
+} {
+  return {
+    artist: track.artist,
+    title: track.title,
+    album: track.album,
+    duration: track.duration
+  };
+}
+
+function refreshLyricsInBackground(track: ParsedMediaRemoteTrack, position: number): void {
+  const key = playbackClockKey(track);
+  const now = Date.now();
+  const lastStartedAt = lyricRefreshStartedAt.get(key) ?? 0;
+  if (now - lastStartedAt < lyricRefreshIntervalMs) {
+    return;
+  }
+  lyricRefreshStartedAt.set(key, now);
+  void resolveCurrentLyrics(lyricQueryForTrack(track), position)
+    .then(({ line }) => {
+      logCurrentLyric(line);
+      debugLog("lyrics", `background refresh done track="${track.artist} - ${track.title}" line="${line}"`);
+    })
+    .catch((error) => {
+      debugLog("lyrics", `background refresh failed track="${track.artist} - ${track.title}" error="${String(error)}"`);
+    });
+}
+
 function artworkExtension(mimeType: string | undefined): string {
   if (mimeType?.includes("png")) {
     return "png";
@@ -335,15 +369,8 @@ export async function getCurrentTrack(): Promise<TrackInfo | null> {
     const estimatedPosition = estimatePlaybackPosition(parsed);
     const artworkPath = saveMediaRemoteArtwork(parsed);
 
-    const lyrics = await resolveCurrentLyrics(
-      {
-        artist: parsed.artist,
-        title: parsed.title,
-        album: parsed.album,
-        duration: parsed.duration
-      },
-      estimatedPosition
-    ).catch(() => ({ line: "", lines: [] }));
+    const lyrics = getCachedCurrentLyrics(lyricQueryForTrack(parsed), estimatedPosition);
+    refreshLyricsInBackground(parsed, estimatedPosition);
     logCurrentLyric(lyrics.line);
     debugLog(
       "track",

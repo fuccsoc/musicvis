@@ -426,6 +426,17 @@ export async function resolveCurrentLyricLine(query: LyricsQuery, position: numb
   return (await resolveCurrentLyrics(query, position)).line;
 }
 
+export function getCachedCurrentLyrics(
+  query: LyricsQuery,
+  position: number
+): { line: string; lines: TimedLyricLine[]; hasCache: boolean } {
+  const key = cacheKey(query);
+  const lines = lyricsCache.get(key)?.lines ?? null;
+  const line = lyricLineAt(lines, position);
+  debugLyricLine(key, position, line, lines?.length ?? 0);
+  return { line, lines: lines ?? [], hasCache: lyricsCache.has(key) };
+}
+
 export async function resolveCurrentLyrics(
   query: LyricsQuery,
   position: number
