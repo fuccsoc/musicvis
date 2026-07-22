@@ -10,7 +10,7 @@ musicvis renders a full-window waveform from system audio, uses macOS Now Playin
 
 - System audio waveform powered by ScreenCaptureKit.
 - Now Playing metadata, playback position, and artwork via MediaRemote.
-- Synced lyrics via LRCLIB.
+- Synced lyrics via LRCLIB, Netease, and no-token Musixmatch fallbacks adapted from Lyrics Plus.
 - Fullscreen-friendly UI with idle cursor hiding.
 - Configurable waveform colors, glow, smoothing, autoscale, and text display.
 - Native helper reload button for recovering from macOS audio capture stalls.
@@ -72,7 +72,7 @@ Without this permission, metadata and artwork can still work, but the waveform w
 
 ## Lyrics
 
-Synced lyrics are resolved from LRCLIB. If LRCLIB does not have synced lyrics for the current track, the lyric row stays empty.
+Synced lyrics are resolved from LRCLIB, Netease, and Musixmatch. The app uses the first provider that returns synced lines; no Musixmatch API key is required. If none of the providers has synced lyrics for the current track, the lyric row stays empty.
 
 ## Debugging
 
