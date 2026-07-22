@@ -10,7 +10,7 @@ musicvis renders a full-window waveform from system audio, uses macOS Now Playin
 
 - System audio waveform powered by ScreenCaptureKit.
 - Now Playing metadata, playback position, and artwork via MediaRemote.
-- Synced lyrics via LRCLIB, with optional Musixmatch support.
+- Synced lyrics via LRCLIB.
 - Fullscreen-friendly UI with idle cursor hiding.
 - Configurable waveform colors, glow, smoothing, autoscale, and text display.
 - Native helper reload button for recovering from macOS audio capture stalls.
@@ -50,6 +50,18 @@ The native outputs are generated artifacts and are intentionally ignored by git.
 
 `build:mac` packages unsigned `dmg` and `zip` artifacts through electron-builder. For public distribution you will still need your own signing and notarization setup.
 
+## Versioning and Releases
+
+Version bumps are driven by `npm version`, so `package.json`, `package-lock.json`, the git commit, and the git tag stay in sync:
+
+```bash
+npm run release:patch
+npm run release:minor
+npm run release:major
+```
+
+Pushing a `vX.Y.Z` tag runs GitHub Actions, builds unsigned macOS artifacts, and publishes a GitHub Release with the generated `dmg`, `zip`, and update metadata.
+
 ## macOS Permissions
 
 The waveform requires Screen Recording permission:
@@ -60,12 +72,7 @@ Without this permission, metadata and artwork can still work, but the waveform w
 
 ## Lyrics
 
-Synced lyrics are resolved from:
-
-- `MUSIXMATCH_API_KEY`, when set.
-- LRCLIB as the no-key fallback.
-
-Some Musixmatch plans do not return full synced lyrics.
+Synced lyrics are resolved from LRCLIB. If LRCLIB does not have synced lyrics for the current track, the lyric row stays empty.
 
 ## Debugging
 
@@ -99,7 +106,7 @@ Delete this file to restore defaults.
 
 ## GitHub Actions
 
-The CI workflow runs type checks and tests on macOS. It can also build unsigned macOS artifacts and upload them from the `release/` directory.
+The CI workflow runs type checks and tests on macOS. Pushes to `main` and manual runs also build unsigned macOS artifacts and upload them from the `release/` directory. Version tags publish a GitHub Release.
 
 ## Troubleshooting
 

@@ -44,6 +44,8 @@ jobs:
     runs-on: macos-15
     needs: validate
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
 
     steps:
       - name: Check out repository
@@ -72,3 +74,15 @@ jobs:
             release/*.zip
             release/latest*.yml
           if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release/*.dmg \
+            release/*.zip \
+            release/latest*.yml \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Unsigned macOS arm64 build. Screen Recording permission is required for waveform capture."

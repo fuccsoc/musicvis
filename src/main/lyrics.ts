@@ -14,45 +14,6 @@ interface LyricsResponse {
   instrumental?: boolean;
 }
 
-interface MusixmatchMessage<T> {
-  message?: {
-    header?: {
-      status_code?: number;
-    };
-    body?: T;
-  };
-}
-
-interface MusixmatchTrack {
-  track_id?: number;
-  has_subtitles?: number;
-  has_richsync?: number;
-}
-
-interface MusixmatchTrackBody {
-  track?: MusixmatchTrack;
-}
-
-interface MusixmatchSubtitleBody {
-  subtitle?: {
-    subtitle_body?: string;
-  };
-}
-
-interface MusixmatchRichsyncBody {
-  richsync?: {
-    richsync_body?: string;
-  };
-}
-
-interface MusixmatchTimedLine {
-  text?: string;
-  time?: {
-    total?: number;
-  };
-  ts?: number;
-}
-
 export interface TimedLyricLine {
   time: number;
   text: string;
@@ -126,33 +87,6 @@ export function parseSyncedLyrics(raw: string): TimedLyricLine[] {
   return lines.sort((a, b) => a.time - b.time);
 }
 
-export function parseMusixmatchSubtitleBody(raw: string): TimedLyricLine[] {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return [];
-  }
-
-  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(trimmed) as MusixmatchTimedLine[] | { body?: MusixmatchTimedLine[] };
-      const items = Array.isArray(parsed) ? parsed : parsed.body ?? [];
-      const lines = items
-        .map((item) => ({
-          time: Number(item.time?.total ?? item.ts),
-          text: item.text?.trim() ?? ""
-        }))
-        .filter((line) => Number.isFinite(line.time));
-      if (lines.length) {
-        return lines.sort((a, b) => a.time - b.time);
-      }
-    } catch {
-      // Some Musixmatch plans return LRC-style subtitle bodies instead of JSON.
-    }
-  }
-
-  return parseSyncedLyrics(trimmed);
-}
-
 export function lyricLineAt(lines: TimedLyricLine[] | null, position: number): string {
   if (!lines?.length || position < 0) {
     return "";
@@ -199,123 +133,41 @@ function parseLyricsPayload(payload: LyricsResponse | null): TimedLyricLine[] | 
   return lines.length ? lines : null;
 }
 
-function parseMusixmatchPayload(raw: string | undefined): TimedLyricLine[] | null {
-  if (!raw) {
-    return null;
-  }
-  const lines = parseMusixmatchSubtitleBody(raw);
-  return lines.length ? lines : null;
-}
-
-async function musixmatchGet<T>(method: string, params: URLSearchParams): Promise<T | null> {
-  const apiKey = process.env.MUSIXMATCH_API_KEY;
-  if (!apiKey) {
-    debugLog("lyrics", `musixmatch skip method=${method} reason=no-api-key`);
+async function firstNonNull<T>(tasks: Array<Promise<T | null>>, label: string): Promise<T | null> {
+  if (!tasks.length) {
     return null;
   }
 
-  params.set("apikey", apiKey);
-  debugLog("lyrics", `musixmatch request method=${method}`);
-  const response = await fetch(`https://api.musixmatch.com/ws/1.1/${method}?${params.toString()}`).catch(() => null);
-  if (!response?.ok) {
-    debugLog("lyrics", `musixmatch failed method=${method} http=${response?.status ?? "network"}`);
-    return null;
-  }
+  return new Promise((resolve) => {
+    let pending = tasks.length;
+    let settled = false;
+    const finishEmpty = (): void => {
+      pending -= 1;
+      if (!settled && pending === 0) {
+        settled = true;
+        resolve(null);
+      }
+    };
 
-  const payload = (await response.json()) as MusixmatchMessage<T>;
-  const status = payload.message?.header?.status_code ?? 0;
-  if (status !== 200) {
-    debugLog("lyrics", `musixmatch rejected method=${method} status=${status}`);
-    return null;
-  }
-  debugLog("lyrics", `musixmatch ok method=${method}`);
-  return payload.message?.body ?? null;
-}
-
-async function fetchMusixmatchByMatcher(
-  query: LyricsQuery,
-  candidate: { artist: string; title: string; album: string }
-): Promise<TimedLyricLine[] | null> {
-  const params = new URLSearchParams({
-    q_track: candidate.title,
-    q_artist: candidate.artist
+    for (const task of tasks) {
+      void task
+        .then((result) => {
+          if (settled) {
+            return;
+          }
+          if (result) {
+            settled = true;
+            resolve(result);
+            return;
+          }
+          finishEmpty();
+        })
+        .catch((error) => {
+          debugLog("lyrics", `${label} failed error="${String(error)}"`);
+          finishEmpty();
+        });
+    }
   });
-  if (candidate.album) {
-    params.set("q_album", candidate.album);
-  }
-  if (query.duration > 0) {
-    params.set("f_subtitle_length", String(Math.round(query.duration)));
-  }
-
-  const body = await musixmatchGet<MusixmatchSubtitleBody>("matcher.subtitle.get", params);
-  return parseMusixmatchPayload(body?.subtitle?.subtitle_body);
-}
-
-async function fetchMusixmatchByTrackId(
-  query: LyricsQuery,
-  candidate: { artist: string; title: string; album: string }
-): Promise<TimedLyricLine[] | null> {
-  const matchParams = new URLSearchParams({
-    q_track: candidate.title,
-    q_artist: candidate.artist
-  });
-  if (candidate.album) {
-    matchParams.set("q_album", candidate.album);
-  }
-  if (query.duration > 0) {
-    matchParams.set("f_track_length", String(Math.round(query.duration)));
-  }
-
-  const trackBody = await musixmatchGet<MusixmatchTrackBody>("matcher.track.get", matchParams);
-  const track = trackBody?.track;
-  if (!track?.track_id) {
-    return null;
-  }
-
-  if (track.has_richsync) {
-    const richsyncBody = await musixmatchGet<MusixmatchRichsyncBody>(
-      "track.richsync.get",
-      new URLSearchParams({ track_id: String(track.track_id) })
-    );
-    const richsync = parseMusixmatchPayload(richsyncBody?.richsync?.richsync_body);
-    if (richsync) {
-      return richsync;
-    }
-  }
-
-  if (!track.has_subtitles && !track.has_richsync) {
-    return null;
-  }
-
-  const subtitleBody = await musixmatchGet<MusixmatchSubtitleBody>(
-    "track.subtitle.get",
-    new URLSearchParams({ track_id: String(track.track_id) })
-  );
-  return parseMusixmatchPayload(subtitleBody?.subtitle?.subtitle_body);
-}
-
-async function fetchMusixmatchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null> {
-  if (!process.env.MUSIXMATCH_API_KEY) {
-    debugLog("lyrics", "musixmatch provider skip reason=no-api-key");
-    return null;
-  }
-
-  for (const candidate of lyricQueries(query)) {
-    debugLog("lyrics", `musixmatch candidate artist="${candidate.artist}" title="${candidate.title}" album="${candidate.album}"`);
-    const matchedSubtitle = await fetchMusixmatchByMatcher(query, candidate);
-    if (matchedSubtitle) {
-      debugLog("lyrics", `musixmatch hit source=matcher lines=${matchedSubtitle.length}`);
-      return matchedSubtitle;
-    }
-
-    const trackSubtitle = await fetchMusixmatchByTrackId(query, candidate);
-    if (trackSubtitle) {
-      debugLog("lyrics", `musixmatch hit source=track lines=${trackSubtitle.length}`);
-      return trackSubtitle;
-    }
-  }
-
-  return null;
 }
 
 async function fetchExactLyrics(
@@ -401,25 +253,22 @@ async function fetchSearchLyrics(
   return null;
 }
 
+async function fetchLrclibLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null> {
+  return firstNonNull(
+    lyricQueries(query).map(async (candidate) => {
+      const exact = await fetchExactLyrics(query, candidate);
+      if (exact) {
+        return exact;
+      }
+
+      return fetchSearchLyrics(candidate);
+    }),
+    "lrclib provider"
+  );
+}
+
 async function fetchLyrics(query: LyricsQuery): Promise<TimedLyricLine[] | null> {
-  const musixmatch = await fetchMusixmatchLyrics(query);
-  if (musixmatch) {
-    return musixmatch;
-  }
-
-  for (const candidate of lyricQueries(query)) {
-    const exact = await fetchExactLyrics(query, candidate);
-    if (exact) {
-      return exact;
-    }
-
-    const searched = await fetchSearchLyrics(candidate);
-    if (searched) {
-      return searched;
-    }
-  }
-
-  return null;
+  return fetchLrclibLyrics(query);
 }
 
 export async function resolveCurrentLyricLine(query: LyricsQuery, position: number): Promise<string> {
