@@ -98,7 +98,10 @@
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "musicvis reads Spotify track information and playback state to keep the visualizer synchronized."
+      }
     }
   }
 }

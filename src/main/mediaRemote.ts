@@ -7,6 +7,7 @@ import { app } from "electron";
 import type { PlaybackState, TrackInfo } from "./types";
 import { getCachedCurrentLyrics, resolveCurrentLyrics } from "./lyrics";
 import { debugLog, log } from "./logger";
+import { getSpotifyTrack, selectTrack } from "./spotify";
 
 const execFileAsync = promisify(execFile);
 const artworkCache = new Map<string, string>();
@@ -34,7 +35,7 @@ function artworkCacheDir(): string {
   return path.join(app.getPath("userData"), "cache", "artwork");
 }
 
-interface ParsedMediaRemoteTrack {
+export interface ParsedMediaRemoteTrack {
   id: string;
   title: string;
   artist: string;
@@ -46,6 +47,7 @@ interface ParsedMediaRemoteTrack {
   positionReliable?: boolean;
   artworkDataBase64?: string;
   artworkMimeType?: string;
+  artworkUrl?: string;
 }
 
 interface SwiftMediaRemotePayload {
@@ -336,10 +338,38 @@ function artworkPathForTrack(trackId: string, mimeType: string | undefined): str
   return path.join(artworkCacheDir(), `mediaremote-${key}.${artworkExtension(mimeType)}`);
 }
 
+const artworkDownloads = new Map<string, number>();
+
+function refreshSpotifyArtwork(track: ParsedMediaRemoteTrack): void {
+  const now = Date.now();
+  if (now - (artworkDownloads.get(track.id) ?? 0) < 30_000) return;
+  artworkDownloads.set(track.id, now);
+  // Fetch in the background so artwork never delays playback state updates.
+  void (async () => {
+    try {
+      const url = new URL(track.artworkUrl!);
+      if (url.protocol !== "https:" || url.hostname !== "i.scdn.co") return;
+      const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) return;
+      const bytes = Buffer.from(await response.arrayBuffer());
+      fs.mkdirSync(artworkCacheDir(), { recursive: true });
+      const target = artworkPathForTrack(track.id, response.headers.get("content-type") ?? undefined);
+      fs.writeFileSync(target, bytes);
+      artworkCache.set(track.id, target);
+    } catch (error) {
+      debugLog("artwork", `spotify artwork failed: ${String(error)}`);
+    }
+  })();
+}
+
 function saveMediaRemoteArtwork(track: ParsedMediaRemoteTrack): string | null {
   const cached = artworkCache.get(track.id);
   if (cached && fs.existsSync(cached)) {
     return cached;
+  }
+  if (!track.artworkDataBase64 && track.artworkUrl) {
+    refreshSpotifyArtwork(track);
+    return null;
   }
   if (!track.artworkDataBase64) {
     return null;
@@ -361,7 +391,10 @@ function saveMediaRemoteArtwork(track: ParsedMediaRemoteTrack): string | null {
 
 export async function getCurrentTrack(): Promise<TrackInfo | null> {
   try {
-    const parsed = await getTrackFromSwiftMediaRemote();
+    const spotify = await getSpotifyTrack();
+    const parsed = spotify?.playbackState === "playing"
+      ? spotify
+      : selectTrack(spotify, await getTrackFromSwiftMediaRemote());
     if (!parsed) {
       debugLog("metadata", "no-track source=mediaremote-adapter");
       return null;

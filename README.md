@@ -118,3 +118,21 @@ The CI workflow runs type checks and tests on macOS. Pushes to `main` and manual
 ## License
 
 WTFPL
+
+## Spotify direct metadata workaround
+
+Spotify metadata, position, and play/pause are read directly through macOS scripting
+on every track poll, bypassing stale MediaRemote updates. A playing Spotify takes
+priority; a paused Spotify replaces a stale Spotify system session. Another player
+selected by MediaRemote still takes over when Spotify is paused. Spotify is never
+launched by the poll. Artwork is cached in the background.
+
+Allow musicvis (or Electron during development) to access Spotify when macOS asks.
+Access can be managed under System Settings → Privacy & Security → Automation.
+If access fails, musicvis falls back to MediaRemote and retries after 30 seconds;
+that fallback may still show the original stale system state. Set
+`MUSICVIS_SPOTIFY_DIRECT=0` to disable the workaround.
+
+This fixes metadata inside musicvis only. It does not repair Control Center or
+BoringNotch, and does not restart mediaremoted. It avoids relying on MediaRemote
+notifications; update latency is the existing poll interval plus query time.
