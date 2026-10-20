@@ -1,8 +1,9 @@
 import { BrowserWindow, ipcMain, shell } from "electron";
-import type { AppSettings, HelperEvent, TrackInfo } from "./types";
-import { getSettings, updateSettings } from "./settings";
+import type { AppSettings, HelperEvent, TrackInfo } from "../shared/types";
+import { getSettings, sanitizeSettingsPatch } from "./settings";
 import { debugLog } from "./logger";
 
+// Keep in sync with preload.ts: sandboxed preloads cannot require local modules.
 export const IPC_CHANNELS = {
   GET_CURRENT_TRACK: "visualizer:getCurrentTrack",
   TRACK_CHANGED: "visualizer:trackChanged",
@@ -18,49 +19,41 @@ export const IPC_CHANNELS = {
   OPEN_SYSTEM_PREFERENCES: "visualizer:openSystemPreferences"
 } as const;
 
-export function setupIpc(mainWindow: BrowserWindow, actions: {
-  getCurrentTrack: () => Promise<TrackInfo | null>;
-  applySettings: (settings: AppSettings, patch?: Partial<AppSettings>) => void;
+export interface IpcActions {
+  getCurrentTrack: () => TrackInfo | null;
+  patchSettings: (patch: Partial<AppSettings>) => AppSettings;
   restartAudioHelper: () => void;
-}): void {
-  ipcMain.handle(IPC_CHANNELS.GET_CURRENT_TRACK, async () => actions.getCurrentTrack());
-  ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, async () => getSettings());
-  ipcMain.handle(IPC_CHANNELS.UPDATE_SETTINGS, async (_event, patch: Partial<AppSettings>) => {
-    const settings = updateSettings(patch);
-    actions.applySettings(settings, patch);
-    return settings;
-  });
+}
 
+export function setupIpc(mainWindow: BrowserWindow, actions: IpcActions): void {
+  ipcMain.handle(IPC_CHANNELS.GET_CURRENT_TRACK, () => actions.getCurrentTrack());
+  ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, () => getSettings());
+  ipcMain.handle(IPC_CHANNELS.UPDATE_SETTINGS, (_event, patch: unknown) => actions.patchSettings(sanitizeSettingsPatch(patch)));
   ipcMain.handle(IPC_CHANNELS.TOGGLE_FULLSCREEN, () => {
-    const fullscreen = !mainWindow.isFullScreen();
-    const settings = updateSettings({ fullscreen });
-    actions.applySettings(settings, { fullscreen });
+    actions.patchSettings({ fullscreen: !mainWindow.isFullScreen() });
   });
-
   ipcMain.handle(IPC_CHANNELS.TOGGLE_ALWAYS_ON_TOP, () => {
-    const alwaysOnTop = !mainWindow.isAlwaysOnTop();
-    const settings = updateSettings({ alwaysOnTop });
-    actions.applySettings(settings, { alwaysOnTop });
+    actions.patchSettings({ alwaysOnTop: !mainWindow.isAlwaysOnTop() });
   });
-
   ipcMain.handle(IPC_CHANNELS.TOGGLE_CLICK_THROUGH, () => {
-    const meta = mainWindow as BrowserWindow & { __clickThrough?: boolean };
-    const next = !meta.__clickThrough;
-    const settings = updateSettings({ clickThrough: next });
-    actions.applySettings(settings, { clickThrough: next });
+    actions.patchSettings({ clickThrough: !getSettings().clickThrough });
   });
-
   ipcMain.handle(IPC_CHANNELS.RESTART_AUDIO_HELPER, () => {
     actions.restartAudioHelper();
   });
-
   ipcMain.handle(IPC_CHANNELS.OPEN_SYSTEM_PREFERENCES, async () => {
     await shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
   });
 }
 
+function send(mainWindow: BrowserWindow, channel: string, payload: unknown): void {
+  if (!mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
 export function emitTrackChanged(mainWindow: BrowserWindow, track: TrackInfo | null): void {
-  mainWindow.webContents.send(IPC_CHANNELS.TRACK_CHANGED, track);
+  send(mainWindow, IPC_CHANNELS.TRACK_CHANGED, track);
 }
 
 let lastAudioIpcDebugAt = 0;
@@ -76,17 +69,17 @@ export function emitHelperEvent(mainWindow: BrowserWindow, event: HelperEvent): 
         "MUSICVIS_DEBUG_AUDIO"
       );
     }
-    mainWindow.webContents.send(IPC_CHANNELS.AUDIO_SAMPLES, event);
+    send(mainWindow, IPC_CHANNELS.AUDIO_SAMPLES, event);
   } else {
     debugLog(
       "audio-helper",
       `ipc send channel=${IPC_CHANNELS.AUDIO_STATUS} type=${event.type} loading=${mainWindow.webContents.isLoading()}`,
       "MUSICVIS_DEBUG_AUDIO"
     );
-    mainWindow.webContents.send(IPC_CHANNELS.AUDIO_STATUS, event);
+    send(mainWindow, IPC_CHANNELS.AUDIO_STATUS, event);
   }
 }
 
 export function emitFullscreenChanged(mainWindow: BrowserWindow, fullscreen: boolean): void {
-  mainWindow.webContents.send(IPC_CHANNELS.FULLSCREEN_CHANGED, fullscreen);
+  send(mainWindow, IPC_CHANNELS.FULLSCREEN_CHANGED, fullscreen);
 }

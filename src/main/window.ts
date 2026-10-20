@@ -20,6 +20,10 @@ export function createMainWindow(): BrowserWindow {
     }
   });
 
+  // The renderer never needs to open or navigate to other pages.
+  browserWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  browserWindow.webContents.on("will-navigate", (event) => event.preventDefault());
+
   if (process.env.VITE_DEV_SERVER_URL) {
     void browserWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {

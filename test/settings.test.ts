@@ -8,6 +8,19 @@ describe("parseSettingsJSON", () => {
     expect(parsed.lineWidth).toBe(defaultSettings.lineWidth);
   });
 
+  it("drops unknown keys and values of the wrong type", () => {
+    const parsed = parseSettingsJSON('{"smoothing":"high","lineWidth":5,"bogus":1,"showAlbum":true}');
+    expect(parsed.smoothing).toBe(defaultSettings.smoothing);
+    expect(parsed.lineWidth).toBe(5);
+    expect(parsed.showAlbum).toBe(true);
+    expect(parsed).not.toHaveProperty("bogus");
+  });
+
+  it("falls back to defaults for non-object JSON", () => {
+    expect(parseSettingsJSON("null")).toEqual(defaultSettings);
+    expect(parseSettingsJSON("[1,2]")).toEqual(defaultSettings);
+  });
+
   it("throws on broken JSON", () => {
     expect(() => parseSettingsJSON("{" )).toThrow();
   });

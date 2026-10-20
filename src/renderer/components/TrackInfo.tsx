@@ -1,5 +1,4 @@
-import type { TrackInfo } from "../types/track";
-import type { AppSettings } from "../types/settings";
+import type { AppSettings, TrackInfo } from "../../shared/types";
 
 interface Props {
   track: TrackInfo | null;

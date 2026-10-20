@@ -1,8 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppSettings, HelperEvent, TrackInfo } from "./types";
+import type { AppSettings, AudioEvent, AudioStatusEvent, TrackInfo } from "../shared/types";
 
 type Unsubscribe = () => void;
 
+// Duplicated from ipc.ts on purpose: sandboxed preloads cannot require local modules.
 const IPC_CHANNELS = {
   GET_CURRENT_TRACK: "visualizer:getCurrentTrack",
   TRACK_CHANGED: "visualizer:trackChanged",
@@ -26,14 +27,14 @@ function onChannel<T>(channel: string, callback: (payload: T) => void): Unsubscr
   };
 }
 
-const api = {
+export const api = {
   getCurrentTrack: (): Promise<TrackInfo | null> => ipcRenderer.invoke(IPC_CHANNELS.GET_CURRENT_TRACK),
   onTrackChanged: (callback: (track: TrackInfo | null) => void): Unsubscribe =>
     onChannel<TrackInfo | null>(IPC_CHANNELS.TRACK_CHANGED, callback),
-  onAudioSamples: (callback: (event: Extract<HelperEvent, { type: "audio" }>) => void): Unsubscribe =>
-    onChannel<Extract<HelperEvent, { type: "audio" }>>(IPC_CHANNELS.AUDIO_SAMPLES, callback),
-  onAudioStatus: (callback: (event: Exclude<HelperEvent, { type: "audio" }>) => void): Unsubscribe =>
-    onChannel<Exclude<HelperEvent, { type: "audio" }>>(IPC_CHANNELS.AUDIO_STATUS, callback),
+  onAudioSamples: (callback: (event: AudioEvent) => void): Unsubscribe =>
+    onChannel<AudioEvent>(IPC_CHANNELS.AUDIO_SAMPLES, callback),
+  onAudioStatus: (callback: (event: AudioStatusEvent) => void): Unsubscribe =>
+    onChannel<AudioStatusEvent>(IPC_CHANNELS.AUDIO_STATUS, callback),
   onFullscreenChanged: (callback: (fullscreen: boolean) => void): Unsubscribe =>
     onChannel<boolean>(IPC_CHANNELS.FULLSCREEN_CHANGED, callback),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
@@ -47,3 +48,5 @@ const api = {
 };
 
 contextBridge.exposeInMainWorld("visualizerApi", api);
+
+export type VisualizerApi = typeof api;

@@ -1,5 +1,10 @@
 export type PlaybackState = "playing" | "paused" | "stopped";
 
+export interface TimedLyricLine {
+  time: number;
+  text: string;
+}
+
 export interface TrackInfo {
   id: string;
   title: string;
@@ -8,11 +13,9 @@ export interface TrackInfo {
   sourceName: string;
   duration: number;
   position: number;
-  positionReliable: boolean;
   playbackState: PlaybackState;
   artworkPath: string | null;
-  lyricLine: string;
-  lyricLines: Array<{ time: number; text: string }>;
+  lyricLines: TimedLyricLine[];
   positionUpdatedAt: number;
 }
 
@@ -33,6 +36,8 @@ export interface ErrorEvent {
 }
 
 export type HelperEvent = AudioEvent | StatusEvent | ErrorEvent;
+
+export type AudioStatusEvent = StatusEvent | ErrorEvent;
 
 export interface AppSettings {
   fullscreen: boolean;

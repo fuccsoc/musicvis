@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import type { AppSettings } from "./types";
+import type { AppSettings } from "../shared/types";
+import { log } from "./logger";
 
 export const defaultSettings: AppSettings = {
   fullscreen: false,
@@ -29,11 +30,30 @@ export const defaultSettings: AppSettings = {
   textScale: 1
 };
 
+let current: AppSettings | null = null;
+
+/** Keeps only known keys whose value type matches the default. */
+export function sanitizeSettingsPatch(input: unknown): Partial<AppSettings> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return {};
+  }
+  const patch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!Object.prototype.hasOwnProperty.call(defaultSettings, key)) {
+      continue;
+    }
+    const expected = typeof defaultSettings[key as keyof AppSettings];
+    if (typeof value === expected && (expected !== "number" || Number.isFinite(value))) {
+      patch[key] = value;
+    }
+  }
+  return patch as Partial<AppSettings>;
+}
+
 export function parseSettingsJSON(raw: string): AppSettings {
-  const parsed = JSON.parse(raw) as Partial<AppSettings>;
   return {
     ...defaultSettings,
-    ...parsed
+    ...sanitizeSettingsPatch(JSON.parse(raw))
   };
 }
 
@@ -42,17 +62,23 @@ function settingsPath(): string {
 }
 
 export function getSettings(): AppSettings {
-  try {
-    const content = fs.readFileSync(settingsPath(), "utf8");
-    return parseSettingsJSON(content);
-  } catch {
-    return defaultSettings;
+  if (!current) {
+    try {
+      current = parseSettingsJSON(fs.readFileSync(settingsPath(), "utf8"));
+    } catch {
+      current = { ...defaultSettings };
+    }
   }
+  return current;
 }
 
-export function updateSettings(next: Partial<AppSettings>): AppSettings {
-  const merged = { ...getSettings(), ...next };
-  fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
-  fs.writeFileSync(settingsPath(), JSON.stringify(merged, null, 2));
-  return merged;
+export function updateSettings(patch: Partial<AppSettings>): AppSettings {
+  current = { ...getSettings(), ...sanitizeSettingsPatch(patch) };
+  try {
+    fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+    fs.writeFileSync(settingsPath(), JSON.stringify(current, null, 2));
+  } catch (error) {
+    log("warn", `Settings save failed: ${String(error)}`);
+  }
+  return current;
 }

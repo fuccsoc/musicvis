@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { autoScaleSpectrumBuckets, calculateSpectrumBuckets, smoothWaveform } from "../lib/waveformMath";
-import type { AppSettings } from "../types/settings";
+import type { AppSettings } from "../../shared/types";
 
 interface Props {
   getSamples: () => number[];
@@ -11,6 +11,9 @@ export function WaveformCanvas({ getSamples, settings }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const smoothedRef = useRef<number[]>([]);
   const autoScaleRef = useRef({ peak: 0, bassPeak: 0, bodyPeak: 0 });
+  // Read settings through a ref so slider changes don't restart the render loop.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,6 +28,7 @@ export function WaveformCanvas({ getSamples, settings }: Props) {
     let rafId = 0;
 
     const render = (): void => {
+      const settings = settingsRef.current;
       const dpr = window.devicePixelRatio || 1;
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
@@ -96,7 +100,7 @@ export function WaveformCanvas({ getSamples, settings }: Props) {
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [getSamples, settings]);
+  }, [getSamples]);
 
   return <canvas ref={canvasRef} className="waveform-canvas" />;
 }

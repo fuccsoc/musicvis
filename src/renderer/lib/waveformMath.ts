@@ -1,30 +1,3 @@
-export function normalizeSamples(samples: number[], sensitivity: number): number[] {
-  if (!samples.length) {
-    return [];
-  }
-  const nextSensitivity = Math.max(0, sensitivity);
-  return samples.map((sample) => Math.min(1, Math.abs(sample) * nextSensitivity));
-}
-
-export function calculateRmsBuckets(samples: number[], bucketCount: number): number[] {
-  if (!samples.length || bucketCount <= 0) {
-    return [];
-  }
-  const bucketSize = Math.max(1, Math.floor(samples.length / bucketCount));
-  const buckets: number[] = [];
-  for (let index = 0; index < bucketCount; index += 1) {
-    const start = index * bucketSize;
-    const chunk = samples.slice(start, Math.min(samples.length, start + bucketSize));
-    if (!chunk.length) {
-      buckets.push(0);
-      continue;
-    }
-    const rms = Math.sqrt(chunk.reduce((sum, value) => sum + value * value, 0) / chunk.length);
-    buckets.push(rms);
-  }
-  return buckets;
-}
-
 function nextPowerOfTwo(value: number): number {
   let power = 1;
   while (power < value) {
@@ -33,7 +6,34 @@ function nextPowerOfTwo(value: number): number {
   return power;
 }
 
-function fft(real: number[], imag: number[]): void {
+interface FftTables {
+  window: Float64Array;
+  cos: Float64Array;
+  sin: Float64Array;
+}
+
+const fftTablesBySize = new Map<number, FftTables>();
+
+function fftTables(size: number): FftTables {
+  let tables = fftTablesBySize.get(size);
+  if (!tables) {
+    const window = new Float64Array(size);
+    for (let index = 0; index < size; index += 1) {
+      window[index] = 0.5 * (1 - Math.cos((2 * Math.PI * index) / (size - 1)));
+    }
+    const cos = new Float64Array(size / 2);
+    const sin = new Float64Array(size / 2);
+    for (let index = 0; index < size / 2; index += 1) {
+      cos[index] = Math.cos((-2 * Math.PI * index) / size);
+      sin[index] = Math.sin((-2 * Math.PI * index) / size);
+    }
+    tables = { window, cos, sin };
+    fftTablesBySize.set(size, tables);
+  }
+  return tables;
+}
+
+function fft(real: Float64Array, imag: Float64Array, tables: FftTables): void {
   const n = real.length;
   for (let index = 1, swapIndex = 0; index < n; index += 1) {
     let bit = n >> 1;
@@ -49,12 +49,11 @@ function fft(real: number[], imag: number[]): void {
 
   for (let size = 2; size <= n; size *= 2) {
     const halfSize = size / 2;
-    const phaseStep = (-2 * Math.PI) / size;
+    const tableStep = n / size;
     for (let offset = 0; offset < n; offset += size) {
       for (let step = 0; step < halfSize; step += 1) {
-        const phase = step * phaseStep;
-        const wr = Math.cos(phase);
-        const wi = Math.sin(phase);
+        const wr = tables.cos[step * tableStep];
+        const wi = tables.sin[step * tableStep];
         const evenIndex = offset + step;
         const oddIndex = evenIndex + halfSize;
         const tr = wr * real[oddIndex] - wi * imag[oddIndex];
@@ -91,14 +90,14 @@ export function calculateSpectrumBuckets(samples: number[], bucketCount: number,
   }
 
   const fftSize = Math.max(64, Math.min(4096, nextPowerOfTwo(samples.length)));
-  const real = new Array<number>(fftSize).fill(0);
-  const imag = new Array<number>(fftSize).fill(0);
+  const tables = fftTables(fftSize);
+  const real = new Float64Array(fftSize);
+  const imag = new Float64Array(fftSize);
   for (let index = 0; index < Math.min(samples.length, fftSize); index += 1) {
-    const windowValue = 0.5 * (1 - Math.cos((2 * Math.PI * index) / (fftSize - 1)));
-    real[index] = samples[index] * windowValue;
+    real[index] = samples[index] * tables.window[index];
   }
 
-  fft(real, imag);
+  fft(real, imag, tables);
 
   const binCount = fftSize / 2;
   const magnitudes = new Array<number>(binCount);
@@ -218,15 +217,4 @@ export function smoothWaveform(previous: number[], current: number[], smoothing:
     next[index] = prevValue * clamped + nextValue * (1 - clamped);
   }
   return next;
-}
-
-export function mirrorWaveform(values: number[]): number[] {
-  if (!values.length) {
-    return [];
-  }
-  const mirrored = [...values];
-  for (let index = values.length - 2; index >= 0; index -= 1) {
-    mirrored.push(values[index]);
-  }
-  return mirrored;
 }

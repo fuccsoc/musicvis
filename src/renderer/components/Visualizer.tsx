@@ -1,5 +1,5 @@
 import { WaveformCanvas } from "./WaveformCanvas";
-import type { AppSettings } from "../types/settings";
+import type { AppSettings } from "../../shared/types";
 import type { CSSProperties } from "react";
 
 interface Props {

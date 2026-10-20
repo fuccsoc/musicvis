@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, net, protocol } from "electron";
+import { net, protocol } from "electron";
+import { artworkCacheDir } from "./artwork";
 
 export const ARTWORK_PROTOCOL = "musicvis-artwork";
 
@@ -17,10 +18,6 @@ export function registerArtworkProtocolScheme(): void {
       }
     }
   ]);
-}
-
-function artworkCacheDir(): string {
-  return path.resolve(app.getPath("userData"), "cache", "artwork");
 }
 
 function isInsideArtworkCache(filePath: string): boolean {

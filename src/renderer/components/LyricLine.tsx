@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import type { TrackInfo } from "../types/track";
+import { useEffect, useState } from "react";
+import { lyricLineAt } from "../../shared/lyrics";
+import type { TrackInfo } from "../../shared/types";
 
 interface Props {
   track: TrackInfo | null;
@@ -7,33 +8,21 @@ interface Props {
 
 export function LyricLine({ track }: Props) {
   const [now, setNow] = useState(() => Date.now());
+  const ticking = Boolean(track && track.playbackState === "playing" && track.lyricLines.length);
 
   useEffect(() => {
-    if (!track || track.playbackState !== "playing" || !track.lyricLines.length) {
+    if (!ticking) {
       return;
     }
     const intervalId = window.setInterval(() => setNow(Date.now()), 80);
     return () => window.clearInterval(intervalId);
-  }, [track]);
+  }, [ticking]);
 
-  const line = useMemo(() => {
-    if (!track?.lyricLines.length) {
-      return track?.lyricLine ?? "";
-    }
-    const position =
-      track.playbackState === "playing"
-        ? track.position + Math.max(0, now - track.positionUpdatedAt) / 1000
-        : track.position;
-    let active = "";
-    for (const lyricLine of track.lyricLines) {
-      if (lyricLine.time <= position + 0.16) {
-        active = lyricLine.text;
-      } else {
-        break;
-      }
-    }
-    return active;
-  }, [now, track]);
+  let line = "";
+  if (track) {
+    const elapsed = track.playbackState === "playing" ? Math.max(0, now - track.positionUpdatedAt) / 1000 : 0;
+    line = lyricLineAt(track.lyricLines, track.position + elapsed);
+  }
 
   return (
     <p className="lyric-line">

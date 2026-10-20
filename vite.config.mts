@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
+const rootDir = import.meta.dirname;
+
 export default defineConfig({
   plugins: [react()],
   root: "src/renderer",
@@ -12,7 +14,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    include: [resolve(__dirname, "test/**/*.test.ts")],
-    setupFiles: [resolve(__dirname, "test/setup.ts")]
+    include: [resolve(rootDir, "test/**/*.test.ts")],
+    setupFiles: [resolve(rootDir, "test/setup.ts")]
   }
 });

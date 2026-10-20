@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
-import type { AudioSamplesEvent, AudioStatusEvent } from "../types/audio";
+import type { AudioStatusEvent } from "../../shared/types";
 
 const maxBufferedSamples = 4096;
 
@@ -12,12 +12,14 @@ export function useAudioSamples(): {
   const [audioStatus, setAudioStatus] = useState<AudioStatusEvent | null>(null);
 
   useEffect(() => {
-    const unsubscribeSamples = window.visualizerApi.onAudioSamples((event: AudioSamplesEvent) => {
-      latestSamplesRef.current = [...latestSamplesRef.current, ...event.samples].slice(-maxBufferedSamples);
+    const unsubscribeSamples = window.visualizerApi.onAudioSamples((event) => {
+      const buffer = latestSamplesRef.current;
+      buffer.push(...event.samples);
+      if (buffer.length > maxBufferedSamples) {
+        buffer.splice(0, buffer.length - maxBufferedSamples);
+      }
     });
-    const unsubscribeStatus = window.visualizerApi.onAudioStatus((event) => {
-      setAudioStatus(event);
-    });
+    const unsubscribeStatus = window.visualizerApi.onAudioStatus(setAudioStatus);
 
     return () => {
       unsubscribeSamples();

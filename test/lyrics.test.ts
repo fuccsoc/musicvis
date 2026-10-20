@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { lyricLineAt, parseMusixmatchSubtitleBody, parseSyncedLyrics } from "../src/main/lyrics";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  getCachedLyrics,
+  lyricLineAt,
+  parseMusixmatchSubtitleBody,
+  parseSyncedLyrics,
+  refreshLyrics
+} from "../src/main/lyrics";
 
 describe("lyrics", () => {
   it("parses synced lyric timestamps", () => {
@@ -36,5 +42,36 @@ describe("lyrics", () => {
 
   it("parses Musixmatch LRC subtitle bodies", () => {
     expect(parseMusixmatchSubtitleBody("[00:03.00]Line")).toEqual([{ time: 3, text: "Line" }]);
+  });
+});
+
+describe("lyrics cache", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fills the cache from a background refresh", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.startsWith("https://lrclib.net/api/get")) {
+        return new Response(JSON.stringify({ syncedLyrics: "[00:01.00]Hello\n[00:03.00]World" }));
+      }
+      return new Response("{}", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const query = { artist: "Cache Artist", title: "Cache Song", album: "", duration: 120 };
+
+    expect(getCachedLyrics(query)).toEqual([]);
+    refreshLyrics(query);
+    await vi.waitFor(() => expect(getCachedLyrics(query)).toHaveLength(2));
+    expect(lyricLineAt(getCachedLyrics(query), 3.2)).toBe("World");
+  });
+
+  it("does not cache transient provider failures", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 503 })));
+    const query = { artist: "Flaky Artist", title: "Flaky Song", album: "", duration: 100 };
+
+    refreshLyrics(query);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(getCachedLyrics(query)).toEqual([]);
   });
 });

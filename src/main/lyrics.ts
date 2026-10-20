@@ -1,4 +1,7 @@
+import type { TimedLyricLine } from "../shared/types";
 import { debugLog, log } from "./logger";
+
+export { lyricLineAt } from "../shared/lyrics";
 
 export interface LyricsQuery {
   artist: string;
@@ -80,11 +83,6 @@ interface MusixmatchTimedLine {
   ts?: number;
 }
 
-export interface TimedLyricLine {
-  time: number;
-  text: string;
-}
-
 interface LyricsCacheEntry {
   lines: TimedLyricLine[] | null;
   timestamp: number;
@@ -95,16 +93,25 @@ interface LyricsFetchResult {
   transientFailure: boolean;
 }
 
+interface JsonResult<T> {
+  payload: T | null;
+  transientFailure: boolean;
+}
+
+const maxCacheEntries = 300;
+const missTtlMs = 5 * 60 * 1000;
+const refreshIntervalMs = 10_000;
+const requestTimeoutMs = 8000;
 const lyricsCache = new Map<string, LyricsCacheEntry>();
 const lyricsInFlight = new Map<string, Promise<LyricsFetchResult>>();
-const loggedKeys = new Set<string>();
-const debugLyrics = process.env.MUSICVIS_DEBUG === "1";
-const lyricLineOnlyDebug = process.env.MUSICVIS_DEBUG_LYRICS === "1" && process.env.MUSICVIS_DEBUG !== "1";
-const lastDebugByKey = new Map<string, string>();
-const missTtlMs = 5 * 60 * 1000;
+const refreshStartedAt = new Map<string, number>();
+const logLookups = !(process.env.MUSICVIS_DEBUG_LYRICS === "1" && process.env.MUSICVIS_DEBUG !== "1");
+const lrclibHeaders = {
+  "User-Agent": "musicvis (https://github.com/fuccsoc/musicvis)"
+};
 const neteaseBaseUrl = "https://music.xianqiao.wang/neteaseapiv2";
 const neteaseHeaders = {
-  "User-Agent": "Mozilla/5.0 musicvis/0.1.0"
+  "User-Agent": "Mozilla/5.0 musicvis"
 };
 const musixmatchBaseUrl = "https://apic-appmobile.musixmatch.com/ws/1.1";
 const musixmatchHeaders = {
@@ -221,27 +228,6 @@ export function parseMusixmatchSubtitleBody(raw: string): TimedLyricLine[] {
   return parseSyncedLyrics(trimmed);
 }
 
-export function lyricLineAt(lines: TimedLyricLine[] | null, position: number): string {
-  if (!lines?.length || position < 0) {
-    return "";
-  }
-
-  let low = 0;
-  let high = lines.length - 1;
-  let activeIndex = -1;
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    if (lines[mid].time <= position + 0.25) {
-      activeIndex = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-
-  return activeIndex >= 0 ? lines[activeIndex].text : "";
-}
-
 function lyricQueries(query: LyricsQuery): Array<{ artist: string; title: string; album: string }> {
   const artist = cleanText(query.artist);
   const title = cleanText(query.title);
@@ -281,12 +267,23 @@ function isTransientLyricsFailure(status: number | undefined): boolean {
   return status === undefined || status === 429 || status >= 500;
 }
 
-async function readLyricsJson<T>(response: Response, label: string): Promise<T | null> {
+async function fetchJson<T>(url: string, headers: Record<string, string>, label: string): Promise<JsonResult<T>> {
+  let response: Response;
   try {
-    return (await response.json()) as T;
+    response = await fetch(url, { headers, signal: AbortSignal.timeout(requestTimeoutMs) });
+  } catch (error) {
+    debugLog("lyrics", `${label} failed error="${String(error)}"`);
+    return { payload: null, transientFailure: true };
+  }
+  if (!response.ok) {
+    debugLog("lyrics", `${label} failed http=${response.status}`);
+    return { payload: null, transientFailure: isTransientLyricsFailure(response.status) };
+  }
+  try {
+    return { payload: (await response.json()) as T, transientFailure: false };
   } catch (error) {
     debugLog("lyrics", `${label} json failed error="${String(error)}"`);
-    return null;
+    return { payload: null, transientFailure: true };
   }
 }
 
@@ -352,30 +349,13 @@ async function fetchExactLyrics(
   let transientFailure = false;
   for (const params of attempts) {
     debugLog("lyrics", `lrclib exact request params="${params.toString()}"`);
-    const response = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
-      headers: {
-        "User-Agent": "musicvis/0.1.0"
-      }
-    }).catch(() => null);
-
-    if (!response?.ok) {
-      transientFailure ||= isTransientLyricsFailure(response?.status);
-      debugLog("lyrics", `lrclib exact failed http=${response?.status ?? "network"}`);
-      continue;
-    }
-
-    const payload = await readLyricsJson<LyricsResponse>(response, "lrclib exact");
-    if (!payload) {
-      transientFailure = true;
-      continue;
-    }
-
-    const lines = parseLyricsPayload(payload);
+    const result = await fetchJson<LyricsResponse>(`https://lrclib.net/api/get?${params.toString()}`, lrclibHeaders, "lrclib exact");
+    transientFailure ||= result.transientFailure;
+    const lines = parseLyricsPayload(result.payload);
     if (lines) {
       debugLog("lyrics", `lrclib exact hit lines=${lines.length}`);
       return lyricsResult(lines);
     }
-    debugLog("lyrics", "lrclib exact empty");
   }
 
   return lyricsResult(null, transientFailure);
@@ -397,26 +377,9 @@ async function fetchSearchLyrics(
   let transientFailure = false;
   for (const params of attempts) {
     debugLog("lyrics", `lrclib search request params="${params.toString()}"`);
-    const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`, {
-      headers: {
-        "User-Agent": "musicvis/0.1.0"
-      }
-    }).catch(() => null);
-
-    if (!response?.ok) {
-      transientFailure ||= isTransientLyricsFailure(response?.status);
-      debugLog("lyrics", `lrclib search failed http=${response?.status ?? "network"}`);
-      continue;
-    }
-
-    const payload = await readLyricsJson<LyricsResponse[]>(response, "lrclib search");
-    if (!payload) {
-      transientFailure = true;
-      continue;
-    }
-
-    debugLog("lyrics", `lrclib search results=${payload.length}`);
-    for (const item of payload) {
+    const result = await fetchJson<LyricsResponse[]>(`https://lrclib.net/api/search?${params.toString()}`, lrclibHeaders, "lrclib search");
+    transientFailure ||= result.transientFailure;
+    for (const item of Array.isArray(result.payload) ? result.payload : []) {
       const lines = parseLyricsPayload(item);
       if (lines) {
         debugLog("lyrics", `lrclib search hit lines=${lines.length}`);
@@ -469,38 +432,25 @@ async function fetchNeteaseLyrics(query: LyricsQuery): Promise<LyricsFetchResult
     keywords: search
   });
   debugLog("lyrics", `netease search request params="${searchParams.toString()}"`);
-  const searchResponse = await fetch(`${neteaseBaseUrl}/search?${searchParams.toString()}`, {
-    headers: neteaseHeaders
-  }).catch(() => null);
-  if (!searchResponse?.ok) {
-    debugLog("lyrics", `netease search failed http=${searchResponse?.status ?? "network"}`);
-    return lyricsResult(null, isTransientLyricsFailure(searchResponse?.status));
+  const searched = await fetchJson<NeteaseSearchResponse>(`${neteaseBaseUrl}/search?${searchParams.toString()}`, neteaseHeaders, "netease search");
+  if (!searched.payload) {
+    return lyricsResult(null, searched.transientFailure);
   }
 
-  const searchPayload = await readLyricsJson<NeteaseSearchResponse>(searchResponse, "netease search");
-  const songs = searchPayload?.result?.songs ?? [];
-  debugLog("lyrics", `netease search results=${songs.length}`);
+  const songs = searched.payload.result?.songs ?? [];
   const song = chooseNeteaseSong(query, songs);
   if (!song?.id) {
-    debugLog("lyrics", "netease search empty");
+    debugLog("lyrics", `netease search no-match results=${songs.length}`);
     return lyricsResult(null);
   }
 
   debugLog("lyrics", `netease lyric request id=${song.id}`);
-  const lyricResponse = await fetch(`${neteaseBaseUrl}/lyric?id=${song.id}`, {
-    headers: neteaseHeaders
-  }).catch(() => null);
-  if (!lyricResponse?.ok) {
-    debugLog("lyrics", `netease lyric failed http=${lyricResponse?.status ?? "network"}`);
-    return lyricsResult(null, isTransientLyricsFailure(lyricResponse?.status));
+  const lyric = await fetchJson<NeteaseLyricsResponse>(`${neteaseBaseUrl}/lyric?id=${song.id}`, neteaseHeaders, "netease lyric");
+  if (!lyric.payload) {
+    return lyricsResult(null, lyric.transientFailure);
   }
 
-  const lyricPayload = await readLyricsJson<NeteaseLyricsResponse>(lyricResponse, "netease lyric");
-  if (!lyricPayload) {
-    return lyricsResult(null, true);
-  }
-
-  const lines = filterLyricCredits(parseSyncedLyrics(lyricPayload.lrc?.lyric ?? ""));
+  const lines = filterLyricCredits(parseSyncedLyrics(lyric.payload.lrc?.lyric ?? ""));
   if (!lines.length) {
     debugLog("lyrics", "netease lyric empty");
     return lyricsResult(null);
@@ -508,6 +458,30 @@ async function fetchNeteaseLyrics(query: LyricsQuery): Promise<LyricsFetchResult
 
   debugLog("lyrics", `netease hit lines=${lines.length}`);
   return lyricsResult(lines);
+}
+
+async function requestMusixmatchToken(): Promise<string | null> {
+  debugLog("lyrics", "musixmatch token request");
+  const result = await fetchJson<MusixmatchMessage<MusixmatchTokenBody>>(
+    `${musixmatchBaseUrl}/token.get?app_id=mac-ios-v2.0`,
+    musixmatchHeaders,
+    "musixmatch token"
+  );
+  if (!result.payload) {
+    musixmatchTokenRetryAfter = Date.now() + (result.transientFailure ? 30_000 : 120_000);
+    return null;
+  }
+  const status = result.payload.message?.header?.status_code ?? 0;
+  const token = result.payload.message?.body?.user_token ?? null;
+  if (status !== 200 || !token) {
+    debugLog("lyrics", `musixmatch token rejected status=${status}`);
+    musixmatchTokenRetryAfter = Date.now() + (isTransientLyricsFailure(status) || status === 401 ? 120_000 : 300_000);
+    return null;
+  }
+  debugLog("lyrics", "musixmatch token ok");
+  musixmatchToken = token;
+  musixmatchTokenRetryAfter = 0;
+  return token;
 }
 
 async function getMusixmatchToken(): Promise<string | null> {
@@ -518,40 +492,9 @@ async function getMusixmatchToken(): Promise<string | null> {
     debugLog("lyrics", "musixmatch token skip reason=backoff");
     return null;
   }
-  if (!musixmatchTokenPromise) {
-    debugLog("lyrics", "musixmatch token request");
-    musixmatchTokenPromise = fetch(`${musixmatchBaseUrl}/token.get?app_id=mac-ios-v2.0`, {
-      headers: musixmatchHeaders
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          debugLog("lyrics", `musixmatch token failed http=${response.status}`);
-          musixmatchTokenRetryAfter = Date.now() + (isTransientLyricsFailure(response.status) ? 30_000 : 120_000);
-          return null;
-        }
-        const payload = await readLyricsJson<MusixmatchMessage<MusixmatchTokenBody>>(response, "musixmatch token");
-        const status = payload?.message?.header?.status_code ?? 0;
-        const token = payload?.message?.body?.user_token ?? null;
-        if (status !== 200 || !token) {
-          debugLog("lyrics", `musixmatch token rejected status=${status}`);
-          musixmatchTokenRetryAfter = Date.now() + (isTransientLyricsFailure(status) || status === 401 ? 120_000 : 300_000);
-          return null;
-        }
-        debugLog("lyrics", "musixmatch token ok");
-        musixmatchToken = token;
-        musixmatchTokenRetryAfter = 0;
-        return token;
-      })
-      .catch((error) => {
-        debugLog("lyrics", `musixmatch token failed error="${String(error)}"`);
-        musixmatchTokenRetryAfter = Date.now() + 30_000;
-        return null;
-      })
-      .finally(() => {
-        musixmatchTokenPromise = null;
-      });
-  }
-
+  musixmatchTokenPromise ??= requestMusixmatchToken().finally(() => {
+    musixmatchTokenPromise = null;
+  });
   return musixmatchTokenPromise;
 }
 
@@ -578,20 +521,16 @@ async function fetchMusixmatchLyrics(query: LyricsQuery): Promise<LyricsFetchRes
   });
 
   debugLog("lyrics", "musixmatch macro request");
-  const response = await fetch(`${musixmatchBaseUrl}/macro.subtitles.get?${params.toString()}`, {
-    headers: musixmatchHeaders
-  }).catch(() => null);
-  if (!response?.ok) {
-    debugLog("lyrics", `musixmatch macro failed http=${response?.status ?? "network"}`);
-    return lyricsResult(null, isTransientLyricsFailure(response?.status));
+  const result = await fetchJson<MusixmatchMessage<MusixmatchMacroBody>>(
+    `${musixmatchBaseUrl}/macro.subtitles.get?${params.toString()}`,
+    musixmatchHeaders,
+    "musixmatch macro"
+  );
+  if (!result.payload) {
+    return lyricsResult(null, result.transientFailure);
   }
 
-  const payload = await readLyricsJson<MusixmatchMessage<MusixmatchMacroBody>>(response, "musixmatch macro");
-  if (!payload) {
-    return lyricsResult(null, true);
-  }
-
-  const body = payload.message?.body?.macro_calls;
+  const body = result.payload.message?.body?.macro_calls;
   const matcher = body?.["matcher.track.get"]?.message;
   const matcherStatus = matcher?.header?.status_code ?? 0;
   if (matcherStatus !== 200) {
@@ -632,74 +571,62 @@ async function fetchLyrics(query: LyricsQuery): Promise<LyricsFetchResult> {
   return firstLyricsResult([fetchLrclibLyrics(query), fetchNeteaseLyrics(query), fetchMusixmatchLyrics(query)], "lyrics provider");
 }
 
-export async function resolveCurrentLyricLine(query: LyricsQuery, position: number): Promise<string> {
-  return (await resolveCurrentLyrics(query, position)).line;
+function storeLyrics(key: string, lines: TimedLyricLine[] | null): void {
+  lyricsCache.delete(key);
+  lyricsCache.set(key, { lines, timestamp: Date.now() });
+  // Map preserves insertion order, so the first keys are the least recently stored.
+  for (const oldKey of lyricsCache.keys()) {
+    if (lyricsCache.size <= maxCacheEntries) {
+      break;
+    }
+    lyricsCache.delete(oldKey);
+    refreshStartedAt.delete(oldKey);
+  }
 }
 
-export function getCachedCurrentLyrics(
-  query: LyricsQuery,
-  position: number
-): { line: string; lines: TimedLyricLine[]; hasCache: boolean } {
-  const key = cacheKey(query);
-  const lines = lyricsCache.get(key)?.lines ?? null;
-  const line = lyricLineAt(lines, position);
-  debugLyricLine(key, position, line, lines?.length ?? 0);
-  return { line, lines: lines ?? [], hasCache: lyricsCache.has(key) };
-}
-
-export async function resolveCurrentLyrics(
-  query: LyricsQuery,
-  position: number
-): Promise<{ line: string; lines: TimedLyricLine[] }> {
+async function resolveLyrics(query: LyricsQuery): Promise<void> {
   const key = cacheKey(query);
   const cached = lyricsCache.get(key);
-  if (!cached || (!cached.lines && Date.now() - cached.timestamp > missTtlMs)) {
-    let linesPromise = lyricsInFlight.get(key);
-    if (!linesPromise) {
-      debugLog("lyrics", cached ? `cache retry key="${key}"` : `cache miss key="${key}"`);
-      linesPromise = fetchLyrics(query).finally(() => {
-        lyricsInFlight.delete(key);
-      });
-      lyricsInFlight.set(key, linesPromise);
-    } else {
-      debugLog("lyrics", `cache join-inflight key="${key}"`);
-    }
-    const result = await linesPromise;
-    if (result.lines || !result.transientFailure) {
-      lyricsCache.set(key, {
-        lines: result.lines,
-        timestamp: Date.now()
-      });
-    }
-    if (!lyricLineOnlyDebug && !loggedKeys.has(key) && (result.lines || !result.transientFailure)) {
-      loggedKeys.add(key);
-      const label = [cleanText(query.artist), cleanText(query.title)].filter(Boolean).join(" - ");
-      log("info", result.lines ? `Lyrics found for ${label}: ${result.lines.length} synced lines` : `No synced lyrics found for ${label}`);
-    } else if (result.transientFailure) {
-      debugLog("lyrics", `lookup transient failure key="${key}"`);
-    }
-  } else {
-    debugLog("lyrics", `cache hit key="${key}" lines=${cached.lines?.length ?? 0}`);
+  if (cached && (cached.lines || Date.now() - cached.timestamp <= missTtlMs)) {
+    return;
   }
-  const lines = lyricsCache.get(key)?.lines ?? null;
-  const line = lyricLineAt(lines, position);
-  debugLyricLine(key, position, line, lines?.length ?? 0);
-  return { line, lines: lines ?? [] };
+
+  let pending = lyricsInFlight.get(key);
+  if (!pending) {
+    debugLog("lyrics", cached ? `cache retry key="${key}"` : `cache miss key="${key}"`);
+    pending = fetchLyrics(query).finally(() => {
+      lyricsInFlight.delete(key);
+    });
+    lyricsInFlight.set(key, pending);
+  }
+
+  const result = await pending;
+  if (!result.lines && result.transientFailure) {
+    debugLog("lyrics", `lookup transient failure key="${key}"`);
+    return;
+  }
+  const isFirstResult = !lyricsCache.has(key);
+  storeLyrics(key, result.lines);
+  if (logLookups && isFirstResult) {
+    const label = [cleanText(query.artist), cleanText(query.title)].filter(Boolean).join(" - ");
+    log("info", result.lines ? `Lyrics found for ${label}: ${result.lines.length} synced lines` : `No synced lyrics found for ${label}`);
+  }
 }
 
-function debugLyricLine(key: string, position: number, line: string, lineCount: number): void {
-  if (!debugLyrics || !lineCount) {
+/** Returns lyrics already in the cache without touching the network. */
+export function getCachedLyrics(query: LyricsQuery): TimedLyricLine[] {
+  return lyricsCache.get(cacheKey(query))?.lines ?? [];
+}
+
+/** Starts a throttled background lookup so later updates find lyrics in the cache. */
+export function refreshLyrics(query: LyricsQuery): void {
+  const key = cacheKey(query);
+  const now = Date.now();
+  if (now - (refreshStartedAt.get(key) ?? 0) < refreshIntervalMs) {
     return;
   }
-  const signature = `${line}::${Math.floor(position)}`;
-  if (lastDebugByKey.get(key) === signature) {
-    return;
-  }
-  lastDebugByKey.set(key, signature);
-  log(
-    "info",
-    line
-      ? `lyrics-debug line position=${position.toFixed(2)} lines=${lineCount} text="${line}"`
-      : `lyrics-debug line position=${position.toFixed(2)} lines=${lineCount} text=""`
-  );
+  refreshStartedAt.set(key, now);
+  void resolveLyrics(query).catch((error) => {
+    debugLog("lyrics", `background refresh failed key="${key}" error="${String(error)}"`);
+  });
 }

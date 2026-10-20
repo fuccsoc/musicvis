@@ -1,5 +1,4 @@
-import type { ChangeEvent } from "react";
-import type { AppSettings } from "../types/settings";
+import type { AppSettings } from "../../shared/types";
 
 interface Props {
   open: boolean;
@@ -8,260 +7,105 @@ interface Props {
   onUpdate: (patch: Partial<AppSettings>) => void;
 }
 
-type NumberSettingKey = {
-  [Key in keyof AppSettings]: AppSettings[Key] extends number ? Key : never;
+type KeysOfType<T> = {
+  [Key in keyof AppSettings]: AppSettings[Key] extends T ? Key : never;
 }[keyof AppSettings];
+
+interface SliderConfig {
+  key: KeysOfType<number>;
+  label: (value: number) => string;
+  min: number;
+  max: number;
+  step: number;
+}
+
+const percent = (name: string) => (value: number) => `${name} ${Math.round(value * 100)}%`;
+
+const sliders: SliderConfig[] = [
+  { key: "waveformWidthPercent", label: (v) => `Width ${v}%`, min: 35, max: 100, step: 1 },
+  { key: "waveformHeight", label: (v) => `Height ${v}px`, min: 40, max: 320, step: 5 },
+  { key: "spectrumBucketCount", label: (v) => `Bands ${v}`, min: 12, max: 384, step: 1 },
+  { key: "bassLevel", label: percent("Bass"), min: 0.25, max: 1.2, step: 0.01 },
+  { key: "autoScaleStrength", label: percent("Autoscale"), min: 0, max: 1, step: 0.01 },
+  { key: "autoScaleMaxGain", label: (v) => `Autoscale cap ${v.toFixed(2)}x`, min: 1, max: 2.2, step: 0.05 },
+  { key: "lineWidth", label: (v) => `Line ${v}px`, min: 1, max: 12, step: 1 },
+  { key: "waveformFillOpacity", label: percent("Fill"), min: 0, max: 0.8, step: 0.02 },
+  { key: "waveformGlow", label: (v) => `Glow ${v}px`, min: 0, max: 44, step: 1 },
+  { key: "sensitivity", label: (v) => `Sensitivity ${v.toFixed(1)}`, min: 0.2, max: 4, step: 0.1 },
+  { key: "smoothing", label: percent("Smoothing"), min: 0, max: 0.95, step: 0.01 },
+  { key: "idleAmplitude", label: (v) => `Idle ${v.toFixed(3)}`, min: 0, max: 0.05, step: 0.001 },
+  { key: "artworkBlur", label: (v) => `Blur ${v}px`, min: 0, max: 90, step: 1 },
+  { key: "artworkBrightness", label: percent("Backdrop"), min: 0.15, max: 1, step: 0.01 },
+  { key: "overlayOpacity", label: percent("Overlay"), min: 0, max: 0.85, step: 0.01 }
+];
+
+const toggles: Array<{ key: KeysOfType<boolean>; label: string }> = [
+  { key: "showAlbum", label: "Show album" },
+  { key: "showNothingPlaying", label: "Show source text" }
+];
+
+const colors: Array<{ key: KeysOfType<string>; label: string }> = [
+  { key: "waveformColorStart", label: "Color A" },
+  { key: "waveformColorEnd", label: "Color B" }
+];
+
+const actions: Array<{ label: string; run: () => Promise<void> }> = [
+  { label: "Toggle Fullscreen (F)", run: () => window.visualizerApi.toggleFullscreen() },
+  { label: "Toggle Always on Top", run: () => window.visualizerApi.toggleAlwaysOnTop() },
+  { label: "Toggle Click-through", run: () => window.visualizerApi.toggleClickThrough() },
+  { label: "Reload Audio", run: () => window.visualizerApi.restartAudioHelper() },
+  { label: "Open Screen Recording Settings", run: () => window.visualizerApi.openSystemPreferences() }
+];
 
 export function SettingsPanel({ open, settings, onClose, onUpdate }: Props) {
   if (!open) {
     return null;
   }
 
-  const updateNumber = (key: NumberSettingKey) => (event: ChangeEvent<HTMLInputElement>) => {
-    onUpdate({ [key]: Number(event.target.value) } as Partial<AppSettings>);
-  };
-
   return (
     <aside className="settings-panel" onContextMenu={(event) => event.preventDefault()}>
       <div className="settings-header">
         <h2>Visual</h2>
         <button type="button" onClick={onClose} className="settings-close" aria-label="Close settings">
-          x
+          ×
         </button>
       </div>
 
-      <label className="settings-row">
-        <span>Show album</span>
-        <input
-          type="checkbox"
-          checked={settings.showAlbum}
-          onChange={(event) => onUpdate({ showAlbum: event.target.checked })}
-        />
-      </label>
-
-      <label className="settings-row">
-        <span>Show source text</span>
-        <input
-          type="checkbox"
-          checked={settings.showNothingPlaying}
-          onChange={(event) => onUpdate({ showNothingPlaying: event.target.checked })}
-        />
-      </label>
+      {toggles.map(({ key, label }) => (
+        <label key={key} className="settings-row">
+          <span>{label}</span>
+          <input type="checkbox" checked={settings[key]} onChange={(event) => onUpdate({ [key]: event.target.checked })} />
+        </label>
+      ))}
 
       <div className="settings-colors">
-        <label>
-          <span>Color A</span>
-          <input
-            type="color"
-            value={settings.waveformColorStart}
-            onChange={(event) => onUpdate({ waveformColorStart: event.target.value })}
-          />
-        </label>
-        <label>
-          <span>Color B</span>
-          <input
-            type="color"
-            value={settings.waveformColorEnd}
-            onChange={(event) => onUpdate({ waveformColorEnd: event.target.value })}
-          />
-        </label>
+        {colors.map(({ key, label }) => (
+          <label key={key}>
+            <span>{label}</span>
+            <input type="color" value={settings[key]} onChange={(event) => onUpdate({ [key]: event.target.value })} />
+          </label>
+        ))}
       </div>
 
-      <label>
-        <span>Width {settings.waveformWidthPercent}%</span>
-        <input
-          type="range"
-          min={35}
-          max={100}
-          step={1}
-          value={settings.waveformWidthPercent}
-          onChange={updateNumber("waveformWidthPercent")}
-        />
-      </label>
+      {sliders.map(({ key, label, min, max, step }) => (
+        <label key={key}>
+          <span>{label(settings[key])}</span>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={settings[key]}
+            onChange={(event) => onUpdate({ [key]: Number(event.target.value) })}
+          />
+        </label>
+      ))}
 
-      <label>
-        <span>Height {settings.waveformHeight}px</span>
-        <input
-          type="range"
-          min={40}
-          max={320}
-          step={5}
-          value={settings.waveformHeight}
-          onChange={updateNumber("waveformHeight")}
-        />
-      </label>
-
-      <label>
-        <span>Bands {settings.spectrumBucketCount}</span>
-        <input
-          type="range"
-          min={12}
-          max={384}
-          step={1}
-          value={settings.spectrumBucketCount}
-          onChange={updateNumber("spectrumBucketCount")}
-        />
-      </label>
-
-      <label>
-        <span>Bass {Math.round(settings.bassLevel * 100)}%</span>
-        <input
-          type="range"
-          min={0.25}
-          max={1.2}
-          step={0.01}
-          value={settings.bassLevel}
-          onChange={updateNumber("bassLevel")}
-        />
-      </label>
-
-      <label>
-        <span>Autoscale {Math.round(settings.autoScaleStrength * 100)}%</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={settings.autoScaleStrength}
-          onChange={updateNumber("autoScaleStrength")}
-        />
-      </label>
-
-      <label>
-        <span>Autoscale cap {settings.autoScaleMaxGain.toFixed(2)}x</span>
-        <input
-          type="range"
-          min={1}
-          max={2.2}
-          step={0.05}
-          value={settings.autoScaleMaxGain}
-          onChange={updateNumber("autoScaleMaxGain")}
-        />
-      </label>
-
-      <label>
-        <span>Line {settings.lineWidth}px</span>
-        <input
-          type="range"
-          min={1}
-          max={12}
-          step={1}
-          value={settings.lineWidth}
-          onChange={updateNumber("lineWidth")}
-        />
-      </label>
-
-      <label>
-        <span>Fill {Math.round(settings.waveformFillOpacity * 100)}%</span>
-        <input
-          type="range"
-          min={0}
-          max={0.8}
-          step={0.02}
-          value={settings.waveformFillOpacity}
-          onChange={updateNumber("waveformFillOpacity")}
-        />
-      </label>
-
-      <label>
-        <span>Glow {settings.waveformGlow}px</span>
-        <input
-          type="range"
-          min={0}
-          max={44}
-          step={1}
-          value={settings.waveformGlow}
-          onChange={updateNumber("waveformGlow")}
-        />
-      </label>
-
-      <label>
-        <span>Sensitivity {settings.sensitivity.toFixed(1)}</span>
-        <input
-          type="range"
-          min={0.2}
-          max={4}
-          step={0.1}
-          value={settings.sensitivity}
-          onChange={updateNumber("sensitivity")}
-        />
-      </label>
-
-      <label>
-        <span>Smoothing {Math.round(settings.smoothing * 100)}%</span>
-        <input
-          type="range"
-          min={0}
-          max={0.95}
-          step={0.01}
-          value={settings.smoothing}
-          onChange={updateNumber("smoothing")}
-        />
-      </label>
-
-      <label>
-        <span>Idle {settings.idleAmplitude.toFixed(3)}</span>
-        <input
-          type="range"
-          min={0}
-          max={0.05}
-          step={0.001}
-          value={settings.idleAmplitude}
-          onChange={updateNumber("idleAmplitude")}
-        />
-      </label>
-
-      <label>
-        <span>Blur {settings.artworkBlur}px</span>
-        <input
-          type="range"
-          min={0}
-          max={90}
-          step={1}
-          value={settings.artworkBlur}
-          onChange={updateNumber("artworkBlur")}
-        />
-      </label>
-
-      <label>
-        <span>Backdrop {Math.round(settings.artworkBrightness * 100)}%</span>
-        <input
-          type="range"
-          min={0.15}
-          max={1}
-          step={0.01}
-          value={settings.artworkBrightness}
-          onChange={updateNumber("artworkBrightness")}
-        />
-      </label>
-
-      <label>
-        <span>Overlay {Math.round(settings.overlayOpacity * 100)}%</span>
-        <input
-          type="range"
-          min={0}
-          max={0.85}
-          step={0.01}
-          value={settings.overlayOpacity}
-          onChange={updateNumber("overlayOpacity")}
-        />
-      </label>
-
-      <button type="button" onClick={() => void window.visualizerApi.toggleFullscreen()}>
-        Toggle Fullscreen (F)
-      </button>
-      <button type="button" onClick={() => void window.visualizerApi.toggleAlwaysOnTop()}>
-        Toggle Always on Top
-      </button>
-      <button type="button" onClick={() => void window.visualizerApi.toggleClickThrough()}>
-        Toggle Click-through
-      </button>
-      <button type="button" onClick={() => void window.visualizerApi.restartAudioHelper()}>
-        Reload Audio
-      </button>
-      <button type="button" onClick={() => void window.visualizerApi.openSystemPreferences()}>
-        Open Screen Recording Settings
-      </button>
+      {actions.map(({ label, run }) => (
+        <button key={label} type="button" onClick={() => void run()}>
+          {label}
+        </button>
+      ))}
     </aside>
   );
 }
